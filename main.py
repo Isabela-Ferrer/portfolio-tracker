@@ -91,7 +91,7 @@ def update_company(id: int, body: CompanyCreate):
 def get_snapshots(id: int, limit: int = 20):
     with _get_db_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM snapshots WHERE company_id = ? ORDER BY timestamp DESC LIMIT ?", 
+            "SELECT * FROM snapshots WHERE company_id = ? ORDER BY fetched_at DESC LIMIT ?", 
             (id, limit)
         ).fetchall()
         return [dict(r) for r in rows]
@@ -100,7 +100,7 @@ def get_snapshots(id: int, limit: int = 20):
 def get_latest_snapshot(id: int):
     with _get_db_conn() as conn:
         row = conn.execute(
-            "SELECT * FROM snapshots WHERE company_id = ? ORDER BY timestamp DESC LIMIT 1", 
+            "SELECT * FROM snapshots WHERE company_id = ? ORDER BY fetched_at DESC LIMIT 1", 
             (id,)
         ).fetchone()
         
@@ -125,7 +125,7 @@ async def refresh_one(id: int):
 @app.post("/api/refresh-all")
 async def refresh_all():
     companies = [_get_company_by_id(c['id']) for c in _list_companies()]
-    # asyncio.gather runs all refreshes at the same time
+    # asyncio.gather runs all refreshes at the same uvicorn main:app --reload
     tasks = [orchestrator.refresh_company(Company(**c)) for c in companies]
     results = await asyncio.gather(*tasks)
     return {"results": len(results), "status": "completed"}
