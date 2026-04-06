@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Company Detail — Portfolio Momentum Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    .signal-items { max-height: 0; overflow: hidden; transition: max-height 0.25s ease; }
+    .signal-items.open { max-height: 400px; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen" x-data="companyApp()" x-init="init()">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center gap-4">
+      <a href="index.html" class="text-gray-400 hover:text-gray-700 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+      </a>
+      <div class="flex-1 min-w-0">
+        <h1 class="text-xl font-semibold text-gray-900 tracking-tight truncate" x-text="company?.name ?? 'Loading…'"></h1>
+        <p class="text-xs text-gray-400 mt-0.5" x-text="company?.ticker ? company.ticker + ' · ' + (company.sector ?? '') : ''"></p>
+      </div>
+      <button
+        @click="refresh()"
+        :disabled="refreshing"
+        class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+      >
+        <svg :class="refreshing ? 'animate-spin' : ''" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        <span x-text="refreshing ? 'Refreshing…' : 'Refresh'"></span>
+      </button>
+    </div>
+  </header>
+
+  <main class="max-w-5xl mx-auto px-6 py-8 space-y-8">
+
+    <!-- Loading skeleton -->
+    <div x-show="loading" x-cloak class="space-y-6 animate-pulse">
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+        <div class="flex items-start gap-4">
+          <div class="flex-1 space-y-3">
+            <div class="h-5 bg-gray-200 rounded w-48"></div>
+            <div class="h-3 bg-gray-100 rounded w-full"></div>
+            <div class="h-3 bg-gray-100 rounded w-5/6"></div>
+          </div>
+          <div class="w-20 h-20 bg-gray-200 rounded-xl"></div>
+        </div>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 h-64"></div>
+    </div>
+
+    <!-- Error state -->
+    <div x-show="error && !loading" x-cloak class="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
+      <p class="text-red-700 text-sm font-medium" x-text="error"></p>
+      <button @click="init()" class="mt-3 text-sm text-red-600 underline">Try again</button>
+    </div>
+
+    <!-- Content -->
+    <template x-if="!loading && !error && company">
+
+      <div class="space-y-8">
+
+        <!-- Hero card -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <div class="flex items-start gap-6">
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap mb-3">
+                <span
+                  x-show="company.sector"
+                  class="text-xs bg-blue-50 text-blue-600 font-medium px-2 py-0.5 rounded-full"
+                  x-text="company.sector"
+                ></span>
+                <span
+                  x-show="latestSnapshot?.created_at"
+                  class="text-xs text-gray-400"
+                  x-text="'Updated ' + formatDate(latestSnapshot?.created_at)"
+                ></span>
+              </div>
+              <p
+                x-show="latestSnapshot?.blurb"
+                class="text-gray-600 text-sm leading-relaxed"
+                x-text="latestSnapshot?.blurb"
+              ></p>
+              <p
+                x-show="!latestSnapshot?.blurb"
+                class="text-gray-300 text-sm italic"
+              >No summary available — run a refresh to generate one.</p>
+            </div>
+
+            <!-- Score badge -->
+            <div class="flex-shrink-0 text-center">
+              <div
+                class="w-20 h-20 rounded-xl flex items-center justify-center text-3xl font-bold"
+                :class="scoreClass(latestSnapshot?.momentum_score)"
+                x-text="latestSnapshot?.momentum_score != null ? Math.round(latestSnapshot.momentum_score) : '–'"
+              ></div>
+              <p class="text-xs text-gray-400 mt-1.5">Momentum</p>
+              <div
+                x-show="latestSnapshot?.delta != null"
+                class="mt-0.5 text-xs font-medium flex items-center justify-center gap-0.5"
+                :class="latestSnapshot?.delta >= 0 ? 'text-green-600' : 'text-red-500'"
+              >
+                <span x-text="latestSnapshot?.delta >= 0 ? '▲' : '▼'"></span>
+                <span x-text="Math.abs(latestSnapshot?.delta ?? 0).toFixed(1)"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Momentum chart -->
+        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <h2 class="text-sm font-semibold text-gray-700 mb-4">Momentum Over Time</h2>
+          <div x-show="snapshots.length > 1" class="relative h-52">
+            <canvas id="momentumChart"></canvas>
+          </div>
+          <div x-show="snapshots.length <= 1" class="h-52 flex items-center justify-center">
+            <p class="text-sm text-gray-300">Not enough data — need at least 2 snapshots.</p>
+          </div>
+        </div>
+
+        <!-- Signals grid -->
+        <div>
+          <h2 class="text-sm font-semibold text-gray-700 mb-3">Signals</h2>
+          <div x-show="latestSnapshot?.signals && Object.keys(latestSnapshot.signals).length > 0">
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              <template x-for="(signal, key) in latestSnapshot.signals" :key="key">
+                <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+                  <div class="p-4">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex items-center gap-2">
+                        <span class="text-lg" x-text="signalIcon(key)"></span>
+                        <div>
+                          <p class="text-xs font-semibold text-gray-700 leading-tight" x-text="signalLabel(key)"></p>
+                          <p
+                            class="text-xs text-gray-400 mt-0.5"
+                            x-text="signal.value != null ? signal.value : 'N/A'"
+                          ></p>
+                        </div>
+                      </div>
+                      <div class="text-right flex-shrink-0">
+                        <div
+                          x-show="signal.score != null"
+                          class="text-sm font-bold"
+                          :class="signalScoreColor(signal.score)"
+                          x-text="signal.score != null ? Math.round(signal.score) : ''"
+                        ></div>
+                        <div
+                          x-show="signal.delta != null"
+                          class="text-xs font-medium flex items-center justify-end gap-0.5 mt-0.5"
+                          :class="signal.delta >= 0 ? 'text-green-600' : 'text-red-500'"
+                        >
+                          <span x-text="signal.delta >= 0 ? '▲' : '▼'"></span>
+                          <span x-text="Math.abs(signal.delta).toFixed(1)"></span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Expandable items -->
+                    <template x-if="signal.items && signal.items.length > 0">
+                      <div>
+                        <button
+                          @click="signal._open = !signal._open"
+                          class="mt-3 text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors"
+                        >
+                          <svg
+                            class="w-3 h-3 transition-transform"
+                            :class="signal._open ? 'rotate-90' : ''"
+                            fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                          >
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+                          </svg>
+                          <span x-text="signal._open ? 'Hide items' : signal.items.length + ' items'"></span>
+                        </button>
+                        <div :class="signal._open ? 'open' : ''" class="signal-items">
+                          <ul class="mt-2 space-y-1.5">
+                            <template x-for="(item, idx) in signal.items.slice(0, 8)" :key="idx">
+                              <li class="text-xs text-gray-500 leading-snug border-t border-gray-50 pt-1.5">
+                                <template x-if="item.url">
+                                  <a :href="item.url" target="_blank" rel="noopener" class="hover:text-blue-600 hover:underline" x-text="item.title ?? item.url"></a>
+                                </template>
+                                <template x-if="!item.url">
+                                  <span x-text="item.title ?? item"></span>
+                                </template>
+                              </li>
+                            </template>
+                          </ul>
+                        </div>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- No signals fallback -->
+          <div x-show="!latestSnapshot?.signals || Object.keys(latestSnapshot?.signals ?? {}).length === 0" class="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
+            <p class="text-sm text-gray-300">No signals in latest snapshot.</p>
+            <button @click="refresh()" class="mt-2 text-sm text-blue-500 hover:underline">Run refresh to collect signals</button>
+          </div>
+        </div>
+
+        <!-- Snapshot history -->
+        <div>
+          <h2 class="text-sm font-semibold text-gray-700 mb-3">Snapshot History</h2>
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+            <table class="w-full text-sm">
+              <thead>
+                <tr class="border-b border-gray-100">
+                  <th class="text-left text-xs font-medium text-gray-400 px-5 py-3">Date</th>
+                  <th class="text-right text-xs font-medium text-gray-400 px-5 py-3">Score</th>
+                  <th class="text-right text-xs font-medium text-gray-400 px-5 py-3">Delta</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(snap, idx) in snapshots" :key="snap.id ?? idx">
+                  <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
+                    <td class="px-5 py-3 text-gray-600" x-text="formatDate(snap.created_at)"></td>
+                    <td class="px-5 py-3 text-right">
+                      <span
+                        class="inline-block font-semibold text-sm px-2 py-0.5 rounded-md"
+                        :class="scoreClass(snap.momentum_score)"
+                        x-text="snap.momentum_score != null ? Math.round(snap.momentum_score) : '–'"
+                      ></span>
+                    </td>
+                    <td class="px-5 py-3 text-right">
+                      <span
+                        x-show="snap.delta != null"
+                        class="text-xs font-medium"
+                        :class="snap.delta >= 0 ? 'text-green-600' : 'text-red-500'"
+                        x-text="(snap.delta >= 0 ? '▲ ' : '▼ ') + Math.abs(snap.delta ?? 0).toFixed(1)"
+                      ></span>
+                      <span x-show="snap.delta == null" class="text-gray-300">—</span>
+                    </td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+            <div x-show="snapshots.length === 0" class="px-5 py-8 text-center text-sm text-gray-300">
+              No snapshots recorded yet.
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </template>
+
+  </main>
+
+  <script>
+    function companyApp() {
+      return {
+        companyId: null,
+        company: null,
+        snapshots: [],
+        latestSnapshot: null,
+        loading: true,
+        refreshing: false,
+        error: null,
+        chart: null,
+
+        async init() {
+          const params = new URLSearchParams(window.location.search);
+          this.companyId = params.get('id');
+          if (!this.companyId) {
+            this.error = 'No company ID provided.';
+            this.loading = false;
+            return;
+          }
+          this.loading = true;
+          this.error = null;
+          try {
+            const [companyRes, snapshotsRes] = await Promise.all([
+              fetch(`/api/companies/${this.companyId}`),
+              fetch(`/api/companies/${this.companyId}/snapshots`),
+            ]);
+            if (!companyRes.ok) throw new Error(`Company not found (${companyRes.status})`);
+            this.company = await companyRes.json();
+            this.snapshots = snapshotsRes.ok ? await snapshotsRes.json() : [];
+            // Most recent first
+            this.snapshots.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+            this.latestSnapshot = this.snapshots[0] ?? null;
+            // Add reactive _open flag to signal items
+            if (this.latestSnapshot?.signals) {
+              Object.values(this.latestSnapshot.signals).forEach(s => { s._open = false; });
+            }
+          } catch (e) {
+            this.error = e.message;
+          } finally {
+            this.loading = false;
+            this.$nextTick(() => this.drawChart());
+          }
+        },
+
+        async refresh() {
+          this.refreshing = true;
+          try {
+            const res = await fetch(`/api/companies/${this.companyId}/refresh`, { method: 'POST' });
+            if (!res.ok) throw new Error(`Refresh failed (${res.status})`);
+          } catch (_) {
+            // non-fatal
+          }
+          // Destroy chart before re-initialising
+          if (this.chart) { this.chart.destroy(); this.chart = null; }
+          await this.init();
+          this.refreshing = false;
+        },
+
+        drawChart() {
+          if (this.snapshots.length <= 1) return;
+          const canvas = document.getElementById('momentumChart');
+          if (!canvas) return;
+          if (this.chart) { this.chart.destroy(); }
+
+          const sorted = [...this.snapshots].reverse();
+          const labels = sorted.map(s => this.formatDate(s.created_at));
+          const data   = sorted.map(s => s.momentum_score);
+
+          this.chart = new Chart(canvas, {
+            type: 'line',
+            data: {
+              labels,
+              datasets: [{
+                label: 'Momentum Score',
+                data,
+                borderColor: '#3b82f6',
+                backgroundColor: 'rgba(59,130,246,0.08)',
+                borderWidth: 2,
+                pointRadius: 4,
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#3b82f6',
+                tension: 0.4,
+                fill: true,
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: {
+                legend: { display: false },
+                tooltip: {
+                  callbacks: {
+                    label: ctx => ` Score: ${Math.round(ctx.parsed.y)}`
+                  }
+                }
+              },
+              scales: {
+                x: {
+                  grid: { color: 'rgba(0,0,0,0.04)' },
+                  ticks: { color: '#9ca3af', font: { size: 11 } },
+                },
+                y: {
+                  min: 0, max: 100,
+                  grid: { color: 'rgba(0,0,0,0.04)' },
+                  ticks: { color: '#9ca3af', font: { size: 11 }, stepSize: 20 },
+                }
+              }
+            }
+          });
+        },
+
+        formatDate(iso) {
+          if (!iso) return '—';
+          return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        },
+
+        scoreClass(score) {
+          if (score == null) return 'bg-gray-100 text-gray-400';
+          if (score >= 70)   return 'bg-green-100 text-green-700';
+          if (score >= 40)   return 'bg-yellow-100 text-yellow-700';
+          return 'bg-red-100 text-red-600';
+        },
+
+        signalScoreColor(score) {
+          if (score == null) return 'text-gray-400';
+          if (score >= 70)   return 'text-green-600';
+          if (score >= 40)   return 'text-yellow-600';
+          return 'text-red-500';
+        },
+
+        signalLabel(key) {
+          const labels = {
+            news:       'News & Media',
+            jobs:       'Job Postings',
+            web:        'Web Traffic',
+            social:     'Social Sentiment',
+            financials: 'Financials',
+            analysts:   'Analyst Ratings',
+          };
+          return labels[key] ?? key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        },
+
+        signalIcon(key) {
+          const icons = {
+            news:       '📰',
+            jobs:       '💼',
+            web:        '🌐',
+            social:     '💬',
+            financials: '📊',
+            analysts:   '🔬',
+          };
+          return icons[key] ?? '📌';
+        },
+      };
+    }
+  </script>
+</body>
+</html>

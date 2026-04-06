@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Settings — Portfolio Momentum Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen" x-data="settingsApp()" x-init="init()">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
+    <div class="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
+      <a href="index.html" class="text-gray-400 hover:text-gray-700 transition-colors">
+        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+      </a>
+      <div>
+        <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Settings</h1>
+        <p class="text-xs text-gray-400 mt-0.5">Manage tracked companies</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="max-w-3xl mx-auto px-6 py-8 space-y-8">
+
+    <!-- Toast notification -->
+    <div
+      x-show="toast.visible"
+      x-cloak
+      x-transition:enter="transition ease-out duration-200"
+      x-transition:enter-start="opacity-0 translate-y-2"
+      x-transition:enter-end="opacity-100 translate-y-0"
+      x-transition:leave="transition ease-in duration-150"
+      x-transition:leave-start="opacity-100"
+      x-transition:leave-end="opacity-0"
+      class="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium"
+      :class="toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'"
+      x-text="toast.message"
+    ></div>
+
+    <!-- Add Company Form -->
+    <section>
+      <h2 class="text-sm font-semibold text-gray-700 mb-4">Add Company</h2>
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+        <form @submit.prevent="addCompany()" class="space-y-5">
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <!-- Name (required) -->
+            <div class="sm:col-span-2">
+              <label for="field-name" class="block text-xs font-medium text-gray-600 mb-1.5">
+                Company Name <span class="text-red-400">*</span>
+              </label>
+              <input
+                id="field-name"
+                type="text"
+                x-model="form.name"
+                placeholder="e.g. Acme Corp"
+                required
+                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
+              />
+            </div>
+
+            <!-- Website URL (required) -->
+            <div class="sm:col-span-2">
+              <label for="field-website-url" class="block text-xs font-medium text-gray-600 mb-1.5">
+                Website URL <span class="text-red-400">*</span>
+              </label>
+              <input
+                id="field-website-url"
+                type="url"
+                x-model="form.website_url"
+                placeholder="https://example.com"
+                required
+                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
+              />
+            </div>
+
+            <!-- App Store URL (optional) -->
+            <div class="sm:col-span-2">
+              <label for="field-app-store-url" class="block text-xs font-medium text-gray-600 mb-1.5">App Store URL</label>
+              <input
+                id="field-app-store-url"
+                type="url"
+                x-model="form.app_store_url"
+                placeholder="https://apps.apple.com/app/id…"
+                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
+              />
+            </div>
+
+            <!-- GitHub Org + Repo (optional) -->
+            <div>
+              <label for="field-github-org" class="block text-xs font-medium text-gray-600 mb-1.5">GitHub Org</label>
+              <input
+                id="field-github-org"
+                type="text"
+                x-model="form.github_org"
+                placeholder="e.g. stripe"
+                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
+              />
+            </div>
+            <div>
+              <label for="field-github-repo" class="block text-xs font-medium text-gray-600 mb-1.5">GitHub Repo</label>
+              <input
+                id="field-github-repo"
+                type="text"
+                x-model="form.github_repo"
+                placeholder="e.g. stripe-python"
+                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
+              />
+            </div>
+
+            <!-- Product Hunt Slug (optional) -->
+            <div class="sm:col-span-2">
+              <label for="field-product-hunt-slug" class="block text-xs font-medium text-gray-600 mb-1.5">Product Hunt Slug</label>
+              <div class="flex items-center">
+                <span class="px-3 py-2 text-sm text-gray-400 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg select-none">producthunt.com/@</span>
+                <input
+                  id="field-product-hunt-slug"
+                  type="text"
+                  x-model="form.product_hunt_slug"
+                  placeholder="notion"
+                  class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
+                />
+              </div>
+            </div>
+          </div>
+
+          <!-- Inline error banner -->
+          <div
+            x-show="formError"
+            x-cloak
+            class="flex items-start gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"
+          >
+            <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <span x-text="formError"></span>
+          </div>
+
+          <div class="flex items-center justify-end gap-3 pt-1">
+            <button
+              type="button"
+              @click="resetForm()"
+              class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+            >Clear</button>
+            <button
+              type="submit"
+              :disabled="submitting || !form.name.trim() || !form.website_url.trim()"
+              class="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              <svg x-show="submitting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
+              </svg>
+              <span x-text="submitting ? 'Adding…' : 'Add Company'"></span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- Company List -->
+    <section>
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-gray-700">
+          Tracked Companies
+          <span x-show="companies.length > 0" class="ml-1.5 text-xs font-normal text-gray-400" x-text="'(' + companies.length + ')'"></span>
+        </h2>
+      </div>
+
+      <!-- Loading -->
+      <div x-show="loading" x-cloak class="space-y-2">
+        <template x-for="i in 3" :key="i">
+          <div class="bg-white rounded-xl border border-gray-100 h-16 animate-pulse"></div>
+        </template>
+      </div>
+
+      <!-- Empty -->
+      <div x-show="!loading && companies.length === 0" x-cloak class="bg-white rounded-xl border border-gray-100 shadow-sm p-10 text-center">
+        <p class="text-sm text-gray-400">No companies yet. Add one above.</p>
+      </div>
+
+      <!-- List -->
+      <div x-show="!loading && companies.length > 0" x-cloak class="space-y-2">
+        <template x-for="company in companies" :key="company.id">
+          <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
+
+            <!-- View row -->
+            <div x-show="editingId !== company.id" class="px-5 py-4 flex items-center gap-4">
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="text-sm font-medium text-gray-800 truncate" x-text="company.name"></span>
+                  <span
+                    x-show="company.github_org"
+                    class="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded"
+                    x-text="company.github_org"
+                  ></span>
+                  <span
+                    x-show="company.product_hunt_slug"
+                    class="text-xs text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full"
+                    x-text="'PH: ' + company.product_hunt_slug"
+                  ></span>
+                </div>
+                <p
+                  x-show="company.website_url"
+                  class="text-xs text-gray-400 truncate mt-0.5"
+                  x-text="company.website_url"
+                ></p>
+              </div>
+              <div class="flex items-center gap-1 flex-shrink-0">
+                <a
+                  :href="`company.html?id=${company.id}`"
+                  class="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                  title="View"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                  </svg>
+                </a>
+                <button
+                  @click="startEdit(company)"
+                  class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                  title="Edit"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                </button>
+                <button
+                  @click="confirmDelete(company)"
+                  class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                  title="Delete"
+                >
+                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <!-- Inline edit row -->
+            <div x-show="editingId === company.id" x-cloak class="px-5 py-4 bg-blue-50 border-t border-blue-100">
+              <p class="text-xs font-semibold text-blue-600 mb-3">Editing: <span x-text="company.name"></span></p>
+              <form @submit.prevent="saveEdit(company.id)" class="space-y-3">
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Name <span class="text-red-400">*</span></label>
+                    <input
+                      type="text"
+                      x-model="editForm.name"
+                      required
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Sector</label>
+                    <select
+                      x-model="editForm.sector"
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
+                    >
+                      <option value="">Select sector…</option>
+                      <option>Technology</option>
+                      <option>Healthcare</option>
+                      <option>Finance</option>
+                      <option>Consumer</option>
+                      <option>Energy</option>
+                      <option>Industrials</option>
+                      <option>Real Estate</option>
+                      <option>Materials</option>
+                      <option>Utilities</option>
+                      <option>Communications</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Website</label>
+                    <input
+                      type="url"
+                      x-model="editForm.website"
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
+                    />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Description</label>
+                    <textarea
+                      x-model="editForm.description"
+                      rows="2"
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition resize-none"
+                    ></textarea>
+                  </div>
+                </div>
+                <div class="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    @click="cancelEdit()"
+                    class="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
+                  >Cancel</button>
+                  <button
+                    type="submit"
+                    :disabled="saving"
+                    class="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                  >
+                    <span x-text="saving ? 'Saving…' : 'Save Changes'"></span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+          </div>
+        </template>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Delete confirmation modal -->
+  <div
+    x-show="deleteTarget"
+    x-cloak
+    x-transition:enter="transition ease-out duration-150"
+    x-transition:enter-start="opacity-0"
+    x-transition:enter-end="opacity-100"
+    class="fixed inset-0 z-40 flex items-center justify-center p-4"
+  >
+    <div class="absolute inset-0 bg-black/40" @click="deleteTarget = null"></div>
+    <div
+      x-transition:enter="transition ease-out duration-150"
+      x-transition:enter-start="opacity-0 scale-95"
+      x-transition:enter-end="opacity-100 scale-100"
+      class="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm z-50"
+    >
+      <h3 class="text-base font-semibold text-gray-900 mb-1">Delete company?</h3>
+      <p class="text-sm text-gray-500 mb-5">
+        <span class="font-medium text-gray-700" x-text="deleteTarget?.name"></span> and all its snapshots will be permanently removed.
+      </p>
+      <div class="flex gap-3 justify-end">
+        <button
+          @click="deleteTarget = null"
+          class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
+        >Cancel</button>
+        <button
+          @click="deleteCompany(deleteTarget.id)"
+          :disabled="deleting"
+          class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+          x-text="deleting ? 'Deleting…' : 'Delete'"
+        ></button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function settingsApp() {
+      return {
+        companies: [],
+        loading: true,
+
+        // Add form
+        form: { name: '', website_url: '', app_store_url: '', github_org: '', github_repo: '', product_hunt_slug: '' },
+        submitting: false,
+        formError: null,
+
+        // Edit state
+        editingId: null,
+        editForm: {},
+        saving: false,
+
+        // Delete state
+        deleteTarget: null,
+        deleting: false,
+
+        // Toast
+        toast: { visible: false, message: '', type: 'success', _timer: null },
+
+        async init() {
+          this.loading = true;
+          try {
+            const res = await fetch('/api/companies');
+            if (!res.ok) throw new Error(`Failed to load companies (${res.status})`);
+            this.companies = await res.json();
+          } catch (e) {
+            this.showToast(e.message, 'error');
+          } finally {
+            this.loading = false;
+          }
+        },
+
+        async addCompany() {
+          if (!this.form.name.trim() || !this.form.website_url.trim()) return;
+          this.formError = null;
+          this.submitting = true;
+          try {
+            const res = await fetch('/api/companies', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.form),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              // Surface validation errors from FastAPI (422) or any other failure
+              const detail = err.detail ?? err.message;
+              const msg = Array.isArray(detail)
+                ? detail.map(d => d.msg).join(', ')
+                : detail ?? `Request failed (${res.status})`;
+              this.formError = msg;
+              return;
+            }
+            const newCompany = await res.json();
+            this.companies.push(newCompany);
+            this.resetForm();
+            this.showToast(`"${newCompany.name}" added — first refresh running in background.`);
+          } catch (e) {
+            this.formError = e.message;
+          } finally {
+            this.submitting = false;
+          }
+        },
+
+        startEdit(company) {
+          this.editingId = company.id;
+          this.editForm = {
+            name:              company.name              ?? '',
+            website_url:       company.website_url       ?? '',
+            app_store_url:     company.app_store_url     ?? '',
+            github_org:        company.github_org        ?? '',
+            github_repo:       company.github_repo       ?? '',
+            product_hunt_slug: company.product_hunt_slug ?? '',
+          };
+        },
+
+        cancelEdit() {
+          this.editingId = null;
+          this.editForm = {};
+        },
+
+        async saveEdit(id) {
+          if (!this.editForm.name.trim()) return;
+          this.saving = true;
+          try {
+            const res = await fetch(`/api/companies/${id}`, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(this.editForm),
+            });
+            if (!res.ok) {
+              const err = await res.json().catch(() => ({}));
+              throw new Error(err.message ?? `Failed to save (${res.status})`);
+            }
+            const updated = await res.json();
+            const idx = this.companies.findIndex(c => c.id === id);
+            if (idx !== -1) this.companies[idx] = updated;
+            this.editingId = null;
+            this.showToast('Changes saved.');
+          } catch (e) {
+            this.showToast(e.message, 'error');
+          } finally {
+            this.saving = false;
+          }
+        },
+
+        confirmDelete(company) {
+          this.deleteTarget = company;
+        },
+
+        async deleteCompany(id) {
+          this.deleting = true;
+          const name = this.deleteTarget?.name ?? 'Company';
+          try {
+            const res = await fetch(`/api/companies/${id}`, { method: 'DELETE' });
+            if (!res.ok) throw new Error(`Delete failed (${res.status})`);
+            this.companies = this.companies.filter(c => c.id !== id);
+            this.deleteTarget = null;
+            this.showToast(`"${name}" deleted.`);
+          } catch (e) {
+            this.showToast(e.message, 'error');
+          } finally {
+            this.deleting = false;
+          }
+        },
+
+        resetForm() {
+          this.form = { name: '', website_url: '', app_store_url: '', github_org: '', github_repo: '', product_hunt_slug: '' };
+          this.formError = null;
+        },
+
+        showToast(message, type = 'success') {
+          if (this.toast._timer) clearTimeout(this.toast._timer);
+          this.toast.message = message;
+          this.toast.type    = type;
+          this.toast.visible = true;
+          this.toast._timer  = setTimeout(() => { this.toast.visible = false; }, 3500);
+        },
+      };
+    }
+  </script>
+</body>
+</html>
