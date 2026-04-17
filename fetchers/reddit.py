@@ -1,47 +1,153 @@
 import httpx
 import urllib.parse
+import re
 from xml.etree.ElementTree import fromstring
-from typing import List
+from typing import List, Optional
 from models import SocialSignal
+
+# Subreddits that produce too much incidental noise (politics, entertainment, etc.)
+_NOISE_SUBREDDITS = {
+    'worldnews', 'news', 'politics', 'askreddit', 'todayilearned',
+    'funny', 'pics', 'gifs', 'videos', 'aww', 'gaming', 'movies',
+    'music', 'sports', 'science', 'history', 'philosophy', 'books',
+    'television', 'food', 'travel', 'fitness', 'relationships',
+    'amitheasshole', 'tifu', 'showerthoughts', 'unpopularopinion',
+    'mildlyinteresting', 'interestingasfuck', 'facepalm', 'cringe',
+}
+
+# At least one of these must appear in the title alongside the company name,
+# signalling the post is about the product/company rather than a casual mention.
+_SIGNAL_WORDS = {
+    'app', 'startup', 'product', 'launch', 'update', 'feature', 'review',
+    'funding', 'raises', 'raised', 'acquired', 'acquisition', 'ipo',
+    'ceo', 'founder', 'api', 'integration', 'pricing', 'subscription',
+    'alternative', 'vs', 'versus', 'recommend', 'recommendation',
+    'thoughts', 'experience', 'using', 'tried', 'built', 'released',
+    'company', 'software', 'platform', 'tool', 'service', 'saas',
+    'plugin', 'extension', 'dashboard', 'interface', 'workflow',
+    'bug', 'issue', 'support', 'feedback', 'hire', 'hiring', 'layoffs',
+    'competitor', 'comparison', 'better', 'worse', 'switching',
+}
+
+
+def _extract_domain(website_url: Optional[str]) -> Optional[str]:
+    """Extract bare domain (e.g. 'notion.so') from a full URL."""
+    if not website_url:
+        return None
+    m = re.search(r'https?://(?:www\.)?([^/]+)', website_url)
+    return m.group(1).lower() if m else None
+
+
+def _subreddit_from_url(post_url: str) -> Optional[str]:
+    m = re.search(r'/r/([^/]+)/', post_url)
+    return m.group(1).lower() if m else None
+
+
+def _is_relevant(
+    title: str,
+    company_name: str,
+    post_url: str,
+    company_domain: Optional[str],
+) -> bool:
+    """
+    Return True only if the Reddit post is genuinely about the company.
+
+    Checks (in order):
+    1. Company name appears as a whole word in the title (word-boundary regex).
+       This stops e.g. "Notion" matching "notional" or "Arc" matching "arcade".
+    2. If the post links directly to the company's domain → accept immediately
+       (link posts to the company's own site are almost certainly on-topic).
+    3. Reject posts from generic/entertainment subreddits.
+    4. Title must contain at least one business/tech signal word, confirming
+       the post is discussing the product rather than mentioning the name in passing.
+    """
+    title_lower = title.lower()
+    name_lower = company_name.lower()
+
+    # 1. Word-boundary check — whole-word match only
+    if not re.search(r'\b' + re.escape(name_lower) + r'\b', title_lower):
+        return False
+
+    # 2. Domain link → high confidence, accept immediately
+    if company_domain and company_domain in post_url.lower():
+        return True
+
+    # 3. Noise subreddit → reject
+    subreddit = _subreddit_from_url(post_url)
+    if subreddit and subreddit in _NOISE_SUBREDDITS:
+        return False
+
+    # 4. Must have at least one business/tech signal word in the title
+    title_words = set(re.findall(r'\b\w+\b', title_lower))
+    if not title_words.intersection(_SIGNAL_WORDS):
+        return False
+
+    return True
+
 
 async def fetch(company) -> List[SocialSignal]:
     """
-    Searches Reddit for the company name plus context keywords.
+    Fetch Reddit posts that are genuinely about the company.
+
+    Two-pass strategy:
+      Pass 1 — exact phrase search: "CompanyName"
+      Pass 2 — domain link search: site:companydomain.com  (if URL is set)
+
+    Posts are deduped by URL and filtered for relevance before being returned.
     """
-    # 1. Refined Query: "CompanyName (startup OR app)"
-    # This tells Reddit the post MUST have the company name 
-    # AND either the word 'startup' or 'app'.
-    raw_query = f'{company.name} (startup OR app)'
-    query = urllib.parse.quote(raw_query)
-    
-    # sort=relevance is often better for specific keywords, 
-    # but sort=new is better for "Momentum"
-    url = f"https://www.reddit.com/search.rss?q={query}&sort=new"
-    
-    signals = []
-    
-    try:
-        async with httpx.AsyncClient(timeout=15) as client:
-            # Descriptive User-Agent to avoid 429 errors
-            headers = {"User-Agent": "MomentumTracker/1.0 (Contact: your@email.com)"}
-            r = await client.get(url, headers=headers)
-            
-            if r.status_code == 200:
+    company_domain = _extract_domain(getattr(company, 'website_url', None))
+
+    queries = [f'"{company.name}"']  # exact phrase; Reddit honours quotes
+    if company_domain:
+        queries.append(f'site:{company_domain}')
+
+    signals: List[SocialSignal] = []
+    seen_urls: set = set()
+
+    async with httpx.AsyncClient(timeout=15) as client:
+        headers = {"User-Agent": "MomentumTracker/1.0 (portfolio-tracker)"}
+
+        for raw_query in queries:
+            encoded = urllib.parse.quote(raw_query)
+            url = f"https://www.reddit.com/search.rss?q={encoded}&sort=new&limit=25"
+
+            try:
+                r = await client.get(url, headers=headers)
+            except Exception as e:
+                print(f"Reddit fetch error for {company.name!r} (query={raw_query!r}): {e}")
+                continue
+
+            if r.status_code == 429:
+                print(f"Reddit rate limit hit for {company.name!r}")
+                continue
+            if r.status_code != 200:
+                print(f"Reddit returned {r.status_code} for {company.name!r}")
+                continue
+
+            try:
                 root = fromstring(r.content)
-                ns = {"atom": "http://www.w3.org/2005/Atom"}
-                
-                for entry in root.findall("atom:entry", ns)[:10]:
+            except Exception as e:
+                print(f"Reddit XML parse error for {company.name!r}: {e}")
+                continue
+
+            ns = {"atom": "http://www.w3.org/2005/Atom"}
+            for entry in root.findall("atom:entry", ns):
+                title = entry.findtext("atom:title", "", ns).strip()
+                link_el = entry.find("atom:link", ns)
+                post_url = (link_el.get("href", "") if link_el is not None else "").strip()
+
+                if not post_url or post_url in seen_urls:
+                    continue
+
+                if _is_relevant(title, company.name, post_url, company_domain):
+                    seen_urls.add(post_url)
                     signals.append(SocialSignal(
                         platform="reddit",
-                        content=entry.findtext("atom:title", "", ns),
-                        engagement_count=0, 
-                        url=entry.find("atom:link", ns).get("href", ""),
-                        date=entry.findtext("atom:updated", "", ns)
+                        content=title,
+                        engagement_count=0,
+                        url=post_url,
+                        date=entry.findtext("atom:updated", "", ns),
                     ))
-            elif r.status_code == 429:
-                print(f"Reddit is rate-limiting us. Try changing the User-Agent.")
-                
-    except Exception as e:
-        print(f"Reddit fetch error for {company.name}: {e}")
-        
-    return signals
+
+    # Return up to 15 most recent (RSS already orders newest-first)
+    return signals[:15]
