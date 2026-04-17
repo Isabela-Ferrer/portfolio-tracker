@@ -75,7 +75,7 @@
               <th class="text-left text-xs font-medium text-gray-400 px-5 py-3">Company</th>
               <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">Score</th>
               <th class="text-center text-xs font-medium text-gray-400 px-3 py-3">Trend</th>
-              <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">📰 Press</th>
+              <th class="text-left text-xs font-medium text-gray-400 px-3 py-3 min-w-[220px]">📰 Press highlights</th>
               <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">💼 Jobs</th>
               <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">📱 Rating</th>
               <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">🚀 Launches</th>
@@ -124,20 +124,27 @@
                 </td>
 
                 <!-- Raw signal values -->
-                <!-- Press: article count -->
-                <td class="px-3 py-3 text-right">
-                  <template x-if="rawSignals(company.snap).press_count != null">
-                    <div class="inline-flex flex-col items-end gap-0.5">
-                      <span class="text-xs font-medium text-gray-700" x-text="rawSignals(company.snap).press_count"></span>
+                <!-- Press: top 3 AI-extracted bullet points -->
+                <td class="px-3 py-3 min-w-[220px]">
+                  <template x-if="rawSignals(company.snap).press_bullets?.length">
+                    <div>
+                      <ul class="space-y-1">
+                        <template x-for="(bullet, i) in rawSignals(company.snap).press_bullets" :key="i">
+                          <li class="text-xs text-gray-600 leading-snug flex gap-1.5">
+                            <span class="text-gray-300 shrink-0 select-none">•</span>
+                            <span x-text="bullet"></span>
+                          </li>
+                        </template>
+                      </ul>
                       <template x-if="company.trends?.press && company.trends.press.direction !== 'flat'">
-                        <span class="text-[10px] font-medium leading-none"
+                        <p class="text-[10px] font-medium mt-1 leading-none"
                           :class="company.trends.press.direction === 'up' ? 'text-green-500' : 'text-red-400'"
-                          x-text="(company.trends.press.delta > 0 ? '+' : '') + company.trends.press.delta"
-                        ></span>
+                          x-text="(company.trends.press.delta > 0 ? '+' : '') + company.trends.press.delta + ' vs last month'"
+                        ></p>
                       </template>
                     </div>
                   </template>
-                  <span x-show="rawSignals(company.snap).press_count == null" class="text-xs text-gray-300">—</span>
+                  <span x-show="!rawSignals(company.snap).press_bullets?.length" class="text-xs text-gray-300">—</span>
                 </td>
 
                 <!-- Jobs: open role count -->
@@ -357,8 +364,25 @@
             funding_label = withAmount ? withAmount.amount_hint : `${funding.length} signal${funding.length !== 1 ? 's' : ''}`;
           }
 
+          // Press bullets: up to 3 AI key_points pooled from articles in order.
+          // Falls back to article titles if key_points haven't been extracted yet.
+          const press_bullets = [];
+          for (const article of press) {
+            const kps = article.key_points;
+            if (kps && kps.length > 0) {
+              for (const kp of kps) {
+                if (press_bullets.length < 3) press_bullets.push(kp);
+              }
+            } else if (press_bullets.length < 3 && article.title) {
+              // fallback: use raw headline when AI hasn't run yet
+              press_bullets.push(article.title);
+            }
+            if (press_bullets.length >= 3) break;
+          }
+
           return {
-            press_count:    press.length,
+            press_bullets,
+            press_count:    press.length,   // still used for trend delta label
             jobs_count:     jobs.total_count ?? null,
             avg_rating,
             rating_label,
