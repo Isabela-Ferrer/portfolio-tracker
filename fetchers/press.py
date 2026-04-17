@@ -35,23 +35,59 @@ def _clean_html(raw: str) -> str:
     return _SPACE_RE.sub(' ', text).strip()
 
 
-def _is_about_company(title: str, company_name: str, domain: str) -> bool:
+_FALSE_POS_RE = re.compile(
+    r'\b(?:the|a|an|on|off|up|down|over|out|into|'
+    r'exit|boat|ski|loading|access|entry|'
+    r'great|new|old|big|small|long|short|'
+    r'straight|wide|narrow|dark|light|deep|high|'
+    r'pure|clean|clear|plain|simple|direct|'
+    r'equal|sharp|flat|solid|dense|rich|raw|'
+    r'core|true|open|free|full|fast|hard|soft|'
+    r'inner|outer|upper|lower|basic|total|local)\s+',
+    re.IGNORECASE,
+)
+
+
+def _is_about_company(title: str, snippet: str, company_name: str, domain: str) -> bool:
+    """
+    Returns True only when the article is genuinely about this company.
+
+    The previous logic had a critical bug: the _BIZ_SIGNALS block was a
+    standalone pass condition with no company-name requirement, so any
+    article containing words like 'startup', 'announces', or 'funding'
+    would pass for every company regardless of whether the company was
+    mentioned at all.
+
+    New logic:
+    1. Company name MUST appear as a whole word in the title — hard gate.
+    2. For short/ambiguous names (≤5 chars) that double as common nouns
+       (Arc, Beam, Plain, Mesh…), at least one business-signal word must
+       also appear in the title or RSS snippet to confirm context.
+    3. Reject grammatical false positives where the name follows a generic
+       determiner/adjective: "a linear approach", "the arc of history", etc.
+    """
     t = title.lower()
-    if domain and domain.lower() in t:
-        return True
-    if any(sig in t for sig in _BIZ_SIGNALS):
-        return True
-    if re.search(r'\b' + re.escape(company_name) + r'\b', title):
-        if len(company_name) <= 6:
-            false_pos = re.compile(
-                r'\b(the|a|an|on|off|up|down|over|exit|boat|loading|ski|launch|access|entry)\s+'
-                + re.escape(company_name.lower()) + r'\b',
-                re.IGNORECASE,
-            )
-            if false_pos.search(title):
-                return False
-        return True
-    return False
+    name_lower = company_name.lower()
+
+    # 1. Hard gate: whole-word name match in title
+    if not re.search(r'\b' + re.escape(name_lower) + r'\b', t):
+        return False
+
+    # 2. Short/common names need business context to confirm they refer to
+    #    the company and not a generic noun or adjective.
+    if len(name_lower) <= 5:
+        combined = t + ' ' + (snippet or '').lower()
+        if not any(sig in combined for sig in _BIZ_SIGNALS):
+            return False
+
+    # 3. Reject false positives where the name is used as a generic word
+    #    following a determiner or generic qualifier.
+    if len(name_lower) <= 7:
+        pattern = _FALSE_POS_RE.pattern + re.escape(name_lower) + r'\b'
+        if re.search(pattern, t, re.IGNORECASE):
+            return False
+
+    return True
 
 
 async def _fetch_snippet(url: str, client: httpx.AsyncClient) -> str:
@@ -116,7 +152,7 @@ async def fetch(company) -> list[PressArticle]:
                 continue
             seen_urls.add(link)
 
-            if not _is_about_company(title, name, domain):
+            if not _is_about_company(title, desc, name, domain):
                 continue
 
             candidates.append(PressArticle(
