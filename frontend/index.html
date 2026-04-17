@@ -90,11 +90,27 @@
                 @click="navigate(company.id)"
                 class="border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer transition-colors"
               >
-                <!-- Company name + last updated -->
+                <!-- Company name + logo + last updated -->
                 <td class="px-5 py-3">
-                  <p class="font-medium text-gray-900" x-text="company.name"></p>
-                  <p class="text-xs text-gray-400 mt-0.5" x-show="company.snap" x-text="timeAgo(company.snap?.fetched_at)"></p>
-                  <p class="text-xs text-gray-300 italic mt-0.5" x-show="!company.snap">No snapshot</p>
+                  <div class="flex items-center gap-3">
+                    <!-- Logo: letter-avatar always underneath; Clearbit image on top, hides on error -->
+                    <div class="w-8 h-8 shrink-0 rounded-lg overflow-hidden relative"
+                      :style="'background:' + letterBgColor(company.name)">
+                      <span class="absolute inset-0 flex items-center justify-center text-sm font-bold text-white select-none"
+                        x-text="company.name[0]?.toUpperCase()"></span>
+                      <img
+                        :src="logoUrl(company.website_url)"
+                        class="absolute inset-0 w-full h-full object-contain bg-white p-0.5 rounded-lg"
+                        @error="$event.target.style.display='none'"
+                        loading="lazy"
+                      />
+                    </div>
+                    <div>
+                      <p class="font-medium text-gray-900" x-text="company.name"></p>
+                      <p class="text-xs text-gray-400 mt-0.5" x-show="company.snap" x-text="timeAgo(company.snap?.fetched_at)"></p>
+                      <p class="text-xs text-gray-300 italic mt-0.5" x-show="!company.snap">No snapshot</p>
+                    </div>
+                  </div>
                 </td>
 
                 <!-- Score badge + trend delta -->
@@ -410,6 +426,26 @@
             reddit_bullets,
             reddit_count:   reddit_posts.length,
           };
+        },
+
+        logoUrl(website_url) {
+          if (!website_url) return '';
+          try {
+            const url = website_url.startsWith('http') ? website_url : 'https://' + website_url;
+            const domain = new URL(url).hostname.replace(/^www\./, '');
+            return `https://logo.clearbit.com/${domain}`;
+          } catch { return ''; }
+        },
+
+        letterBgColor(name) {
+          const palette = [
+            '#6366f1','#8b5cf6','#ec4899','#f43f5e',
+            '#f97316','#eab308','#22c55e','#14b8a6',
+            '#3b82f6','#06b6d4',
+          ];
+          let h = 0;
+          for (const c of (name || '')) h = c.charCodeAt(0) + h * 31;
+          return palette[Math.abs(h) % palette.length];
         },
 
         aiHighlights(snap) {

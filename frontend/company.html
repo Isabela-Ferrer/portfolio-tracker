@@ -23,6 +23,20 @@
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
       </a>
+      <!-- Company logo -->
+      <template x-if="company">
+        <div class="w-9 h-9 shrink-0 rounded-xl overflow-hidden relative"
+          :style="'background:' + letterBgColor(company.name)">
+          <span class="absolute inset-0 flex items-center justify-center text-sm font-bold text-white select-none"
+            x-text="company.name[0]?.toUpperCase()"></span>
+          <img
+            :src="logoUrl(company.website_url)"
+            class="absolute inset-0 w-full h-full object-contain bg-white p-0.5 rounded-xl"
+            @error="$event.target.style.display='none'"
+            loading="lazy"
+          />
+        </div>
+      </template>
       <div class="flex-1 min-w-0">
         <h1 class="text-xl font-semibold text-gray-900 tracking-tight truncate" x-text="company?.name ?? 'Loading…'"></h1>
         <p class="text-xs text-gray-400 mt-0.5" x-show="company?.website_url" x-text="company?.website_url"></p>
@@ -642,6 +656,26 @@
               }
             });
           }
+        },
+
+        logoUrl(website_url) {
+          if (!website_url) return '';
+          try {
+            const url = website_url.startsWith('http') ? website_url : 'https://' + website_url;
+            const domain = new URL(url).hostname.replace(/^www\./, '');
+            return `https://logo.clearbit.com/${domain}`;
+          } catch { return ''; }
+        },
+
+        letterBgColor(name) {
+          const palette = [
+            '#6366f1','#8b5cf6','#ec4899','#f43f5e',
+            '#f97316','#eab308','#22c55e','#14b8a6',
+            '#3b82f6','#06b6d4',
+          ];
+          let h = 0;
+          for (const c of (name || '')) h = c.charCodeAt(0) + h * 31;
+          return palette[Math.abs(h) % palette.length];
         },
 
         aiHighlights() {
