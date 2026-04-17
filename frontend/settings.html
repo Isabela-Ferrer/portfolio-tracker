@@ -15,7 +15,7 @@
   <!-- Header -->
   <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
     <div class="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
-      <a href="index.html" class="text-gray-400 hover:text-gray-700 transition-colors">
+      <a href="/" class="text-gray-400 hover:text-gray-700 transition-colors">
         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
         </svg>
@@ -128,6 +128,22 @@
                   class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
                 />
               </div>
+            </div>
+
+            <!-- G2 Slug (optional) -->
+            <div class="sm:col-span-2">
+              <label for="field-g2-slug" class="block text-xs font-medium text-gray-600 mb-1.5">G2 Slug</label>
+              <div class="flex items-center">
+                <span class="px-3 py-2 text-sm text-gray-400 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg select-none">g2.com/products/</span>
+                <input
+                  id="field-g2-slug"
+                  type="text"
+                  x-model="form.g2_slug"
+                  placeholder="notion/reviews"
+                  class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
+                />
+              </div>
+              <p class="text-[11px] text-gray-400 mt-1">The slug from the G2 URL, e.g. <code class="bg-gray-100 px-1 rounded">notion</code> for g2.com/products/notion/reviews</p>
             </div>
           </div>
 
@@ -259,41 +275,58 @@
                       class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
                     />
                   </div>
-                  <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Sector</label>
-                    <select
-                      x-model="editForm.sector"
-                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
-                    >
-                      <option value="">Select sector…</option>
-                      <option>Technology</option>
-                      <option>Healthcare</option>
-                      <option>Finance</option>
-                      <option>Consumer</option>
-                      <option>Energy</option>
-                      <option>Industrials</option>
-                      <option>Real Estate</option>
-                      <option>Materials</option>
-                      <option>Utilities</option>
-                      <option>Communications</option>
-                      <option>Other</option>
-                    </select>
-                  </div>
                   <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Website</label>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Website URL <span class="text-red-400">*</span></label>
                     <input
                       type="url"
-                      x-model="editForm.website"
+                      x-model="editForm.website_url"
+                      required
                       class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
                     />
                   </div>
                   <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                    <textarea
-                      x-model="editForm.description"
-                      rows="2"
-                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition resize-none"
-                    ></textarea>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">App Store URL</label>
+                    <input
+                      type="url"
+                      x-model="editForm.app_store_url"
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">GitHub Org</label>
+                    <input
+                      type="text"
+                      x-model="editForm.github_org"
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">GitHub Repo</label>
+                    <input
+                      type="text"
+                      x-model="editForm.github_repo"
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
+                    />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">Product Hunt Slug</label>
+                    <input
+                      type="text"
+                      x-model="editForm.product_hunt_slug"
+                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
+                    />
+                  </div>
+                  <div class="sm:col-span-2">
+                    <label class="block text-xs font-medium text-gray-600 mb-1">G2 Slug</label>
+                    <div class="flex items-center">
+                      <span class="px-3 py-2 text-sm text-gray-400 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg select-none">g2.com/products/</span>
+                      <input
+                        type="text"
+                        x-model="editForm.g2_slug"
+                        placeholder="notion"
+                        class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
+                      />
+                    </div>
                   </div>
                 </div>
                 <div class="flex items-center justify-end gap-2 pt-1">
@@ -362,7 +395,7 @@
         loading: true,
 
         // Add form
-        form: { name: '', website_url: '', app_store_url: '', github_org: '', github_repo: '', product_hunt_slug: '' },
+        form: { name: '', website_url: '', app_store_url: '', github_org: '', github_repo: '', product_hunt_slug: '', g2_slug: '' },
         submitting: false,
         formError: null,
 
@@ -431,6 +464,7 @@
             github_org:        company.github_org        ?? '',
             github_repo:       company.github_repo       ?? '',
             product_hunt_slug: company.product_hunt_slug ?? '',
+            g2_slug:           company.g2_slug           ?? '',
           };
         },
 
@@ -485,7 +519,7 @@
         },
 
         resetForm() {
-          this.form = { name: '', website_url: '', app_store_url: '', github_org: '', github_repo: '', product_hunt_slug: '' };
+          this.form = { name: '', website_url: '', app_store_url: '', github_org: '', github_repo: '', product_hunt_slug: '', g2_slug: '' };
           this.formError = null;
         },
 

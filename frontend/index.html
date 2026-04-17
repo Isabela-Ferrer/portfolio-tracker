@@ -15,46 +15,44 @@
 
   <!-- Header -->
   <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+    <div class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
       <div>
         <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Portfolio Momentum Tracker</h1>
         <p class="text-xs text-gray-400 mt-0.5">Signal-driven company scoring</p>
       </div>
-      <button
-        @click="refreshAll()"
-        :disabled="refreshing"
-        class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        <svg :class="refreshing ? 'animate-spin' : ''" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        <span x-text="refreshing ? 'Refreshing…' : 'Refresh All'"></span>
-      </button>
+      <div class="flex items-center gap-3">
+        <a href="/settings.html" class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 transition-colors">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Manage
+        </a>
+        <button
+          @click="refreshAll()"
+          :disabled="refreshing"
+          class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <svg :class="refreshing ? 'animate-spin' : ''" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span x-text="refreshing ? 'Refreshing…' : 'Refresh All'"></span>
+        </button>
+      </div>
     </div>
   </header>
 
-  <main class="max-w-5xl mx-auto px-6 py-8">
+  <main class="max-w-7xl mx-auto px-6 py-8">
 
     <!-- Loading state -->
-    <div x-show="loading" x-cloak class="space-y-3">
+    <div x-show="loading" x-cloak class="space-y-2">
       <template x-for="i in 5" :key="i">
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-5 animate-pulse">
-          <div class="flex items-center justify-between">
-            <div class="space-y-2">
-              <div class="h-4 bg-gray-200 rounded w-40"></div>
-              <div class="h-3 bg-gray-100 rounded w-64"></div>
-            </div>
-            <div class="h-10 bg-gray-200 rounded-lg w-16"></div>
-          </div>
-        </div>
+        <div class="bg-white rounded-xl border border-gray-100 h-14 animate-pulse"></div>
       </template>
     </div>
 
     <!-- Error state -->
     <div x-show="error && !loading" x-cloak class="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-      <svg class="w-8 h-8 text-red-400 mx-auto mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
       <p class="text-red-700 text-sm font-medium" x-text="error"></p>
       <button @click="init()" class="mt-3 text-sm text-red-600 underline hover:no-underline">Try again</button>
     </div>
@@ -65,87 +63,166 @@
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-2 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
       </svg>
       <p class="text-gray-500 text-sm">No companies yet.</p>
-      <a href="settings.html" class="mt-3 inline-block text-sm text-blue-600 hover:underline">Add companies in Settings →</a>
+      <a href="/settings.html" class="mt-3 inline-block text-sm text-blue-600 hover:underline">Add companies in Settings →</a>
     </div>
 
-    <!-- Company list -->
-    <div x-show="!loading && !error && companies.length > 0" x-cloak class="space-y-3">
-
-      <!-- Summary bar -->
-      <div class="flex items-center justify-between mb-6">
-        <p class="text-sm text-gray-500">
-          <span class="font-medium text-gray-700" x-text="companies.length"></span> companies tracked
-        </p>
-        <a href="settings.html" class="text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1 transition-colors">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-          Manage
-        </a>
-      </div>
-
-      <template x-for="company in companies" :key="company.id">
-        <div
-          @click="navigate(company.id)"
-          class="bg-white rounded-xl border border-gray-100 shadow-sm hover:shadow-md hover:border-gray-200 transition-all cursor-pointer p-5 group"
-        >
-          <div class="flex items-start gap-4">
-
-            <!-- Company info -->
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2 mb-1">
-                <h2 class="text-base font-semibold text-gray-900 group-hover:text-blue-600 transition-colors truncate" x-text="company.name"></h2>
-                <span
-                  x-show="company.ticker"
-                  class="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded"
-                  x-text="company.ticker"
-                ></span>
-              </div>
-
-              <!-- Blurb -->
-              <p
-                x-show="company.snapshot?.blurb"
-                class="text-sm text-gray-500 leading-snug line-clamp-2"
-                x-text="company.snapshot?.blurb"
-              ></p>
-              <p
-                x-show="!company.snapshot?.blurb && !company.snapshotLoading"
-                class="text-sm text-gray-300 italic"
-              >No snapshot yet</p>
-              <p
-                x-show="company.snapshotLoading"
-                class="text-sm text-gray-300 animate-pulse"
-              >Loading…</p>
-            </div>
-
-            <!-- Sparkline -->
-            <div x-show="company.sparklineData && company.sparklineData.length > 1" class="flex-shrink-0 w-20 h-10">
-              <canvas :id="`spark-${company.id}`" width="80" height="40"></canvas>
-            </div>
-
-            <!-- Score + delta -->
-            <div class="flex-shrink-0 text-right">
-              <div
-                class="inline-flex items-center justify-center w-14 h-14 rounded-xl text-xl font-bold"
-                :class="scoreClass(company.snapshot?.momentum_score)"
-                x-text="company.snapshot?.momentum_score != null ? Math.round(company.snapshot.momentum_score) : '–'"
-              ></div>
-              <div
-                x-show="company.snapshot?.delta != null"
-                class="mt-1 text-xs font-medium flex items-center justify-end gap-0.5"
-                :class="company.snapshot?.delta >= 0 ? 'text-green-600' : 'text-red-500'"
+    <!-- Table -->
+    <div x-show="!loading && !error && companies.length > 0" x-cloak>
+      <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="border-b border-gray-100">
+              <th class="text-left text-xs font-medium text-gray-400 px-5 py-3">Company</th>
+              <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">Score</th>
+              <th class="text-center text-xs font-medium text-gray-400 px-3 py-3">Trend</th>
+              <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">📰 Press</th>
+              <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">💼 Jobs</th>
+              <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">📱 Rating</th>
+              <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">🚀 Launches</th>
+              <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">💰 Funding</th>
+              <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">🟠 Reddit</th>
+              <th class="text-left text-xs font-medium text-gray-400 px-3 py-3 min-w-[180px]">AI Summary</th>
+            </tr>
+          </thead>
+          <tbody>
+            <template x-for="company in companies" :key="company.id">
+              <tr
+                @click="navigate(company.id)"
+                class="border-b border-gray-50 last:border-0 hover:bg-blue-50 cursor-pointer transition-colors"
               >
-                <span x-text="company.snapshot?.delta >= 0 ? '▲' : '▼'"></span>
-                <span x-text="Math.abs(company.snapshot?.delta ?? 0).toFixed(1)"></span>
-              </div>
-            </div>
+                <!-- Company name + last updated -->
+                <td class="px-5 py-3">
+                  <p class="font-medium text-gray-900" x-text="company.name"></p>
+                  <p class="text-xs text-gray-400 mt-0.5" x-show="company.snap" x-text="timeAgo(company.snap?.fetched_at)"></p>
+                  <p class="text-xs text-gray-300 italic mt-0.5" x-show="!company.snap">No snapshot</p>
+                </td>
 
-          </div>
-        </div>
-      </template>
+                <!-- Score badge + trend delta -->
+                <td class="px-3 py-3 text-right">
+                  <div class="inline-flex flex-col items-center gap-0.5">
+                    <span
+                      class="inline-flex items-center justify-center w-10 h-10 rounded-lg text-base font-bold"
+                      :class="scoreClass(company.snap?.momentum_score)"
+                      x-text="company.snap?.momentum_score != null ? Math.round(company.snap.momentum_score) : '–'"
+                    ></span>
+                    <template x-if="company.trends?.momentum_score && company.trends.momentum_score.direction !== 'flat'">
+                      <span
+                        class="text-[10px] font-semibold leading-none"
+                        :class="company.trends.momentum_score.direction === 'up' ? 'text-green-500' : 'text-red-400'"
+                        x-text="(company.trends.momentum_score.delta > 0 ? '↑ +' : '↓ ') + Math.abs(company.trends.momentum_score.delta)"
+                      ></span>
+                    </template>
+                  </div>
+                </td>
 
+                <!-- Sparkline -->
+                <td class="px-3 py-3 text-center">
+                  <div x-show="company.history && company.history.length > 1" class="inline-block w-16 h-8">
+                    <canvas :id="`spark-${company.id}`" width="64" height="32"></canvas>
+                  </div>
+                  <span x-show="!company.history || company.history.length <= 1" class="text-gray-200 text-xs">—</span>
+                </td>
+
+                <!-- Raw signal values -->
+                <!-- Press: article count -->
+                <td class="px-3 py-3 text-right">
+                  <template x-if="rawSignals(company.snap).press_count != null">
+                    <div class="inline-flex flex-col items-end gap-0.5">
+                      <span class="text-xs font-medium text-gray-700" x-text="rawSignals(company.snap).press_count"></span>
+                      <template x-if="company.trends?.press && company.trends.press.direction !== 'flat'">
+                        <span class="text-[10px] font-medium leading-none"
+                          :class="company.trends.press.direction === 'up' ? 'text-green-500' : 'text-red-400'"
+                          x-text="(company.trends.press.delta > 0 ? '+' : '') + company.trends.press.delta"
+                        ></span>
+                      </template>
+                    </div>
+                  </template>
+                  <span x-show="rawSignals(company.snap).press_count == null" class="text-xs text-gray-300">—</span>
+                </td>
+
+                <!-- Jobs: open role count -->
+                <td class="px-3 py-3 text-right">
+                  <template x-if="rawSignals(company.snap).jobs_count != null">
+                    <div class="inline-flex flex-col items-end gap-0.5">
+                      <span class="text-xs font-medium text-gray-700" x-text="rawSignals(company.snap).jobs_count"></span>
+                      <template x-if="company.trends?.jobs && company.trends.jobs.direction !== 'flat'">
+                        <span class="text-[10px] font-medium leading-none"
+                          :class="company.trends.jobs.direction === 'up' ? 'text-green-500' : 'text-red-400'"
+                          x-text="(company.trends.jobs.delta > 0 ? '+' : '') + company.trends.jobs.delta"
+                        ></span>
+                      </template>
+                    </div>
+                  </template>
+                  <span x-show="rawSignals(company.snap).jobs_count == null" class="text-xs text-gray-300">—</span>
+                </td>
+
+                <!-- App: avg rating -->
+                <td class="px-3 py-3 text-right">
+                  <template x-if="rawSignals(company.snap).avg_rating">
+                    <div class="inline-flex flex-col items-end gap-0.5">
+                      <span class="text-xs font-medium text-gray-700" x-text="rawSignals(company.snap).avg_rating + '★'"></span>
+                      <span class="text-[10px] text-gray-400" x-text="rawSignals(company.snap).rating_label"></span>
+                    </div>
+                  </template>
+                  <span x-show="!rawSignals(company.snap).avg_rating" class="text-xs text-gray-300">—</span>
+                </td>
+
+                <!-- Launches: count -->
+                <td class="px-3 py-3 text-right">
+                  <template x-if="rawSignals(company.snap).launches_count != null">
+                    <div class="inline-flex flex-col items-end gap-0.5">
+                      <span class="text-xs font-medium text-gray-700" x-text="rawSignals(company.snap).launches_count"></span>
+                      <template x-if="company.trends?.launches && company.trends.launches.direction !== 'flat'">
+                        <span class="text-[10px] font-medium leading-none"
+                          :class="company.trends.launches.direction === 'up' ? 'text-green-500' : 'text-red-400'"
+                          x-text="(company.trends.launches.delta > 0 ? '+' : '') + company.trends.launches.delta"
+                        ></span>
+                      </template>
+                    </div>
+                  </template>
+                  <span x-show="rawSignals(company.snap).launches_count == null" class="text-xs text-gray-300">—</span>
+                </td>
+
+                <!-- Funding: amount hint or count -->
+                <td class="px-3 py-3 text-right">
+                  <template x-if="rawSignals(company.snap).funding_label">
+                    <span class="text-xs font-medium text-gray-700" x-text="rawSignals(company.snap).funding_label"></span>
+                  </template>
+                  <span x-show="!rawSignals(company.snap).funding_label" class="text-xs text-gray-300">—</span>
+                </td>
+
+                <!-- Reddit: post count -->
+                <td class="px-3 py-3 text-right">
+                  <template x-if="rawSignals(company.snap).reddit_count != null">
+                    <div class="inline-flex flex-col items-end gap-0.5">
+                      <span class="text-xs font-medium text-gray-700" x-text="rawSignals(company.snap).reddit_count"></span>
+                      <template x-if="company.trends?.reddit && company.trends.reddit.direction !== 'flat'">
+                        <span class="text-[10px] font-medium leading-none"
+                          :class="company.trends.reddit.direction === 'up' ? 'text-green-500' : 'text-red-400'"
+                          x-text="(company.trends.reddit.delta > 0 ? '+' : '') + company.trends.reddit.delta"
+                        ></span>
+                      </template>
+                    </div>
+                  </template>
+                  <span x-show="rawSignals(company.snap).reddit_count == null" class="text-xs text-gray-300">—</span>
+                </td>
+
+                <!-- AI blurb -->
+                <td class="px-3 py-3 max-w-xs">
+                  <p
+                    x-show="company.snap?.ai_blurb"
+                    class="text-xs text-gray-500 line-clamp-2 leading-snug"
+                    x-text="company.snap?.ai_blurb"
+                  ></p>
+                  <p x-show="!company.snap?.ai_blurb" class="text-xs text-gray-300 italic">—</p>
+                </td>
+              </tr>
+            </template>
+          </tbody>
+        </table>
+      </div>
     </div>
+
   </main>
 
   <script>
@@ -155,7 +232,7 @@
         loading: true,
         refreshing: false,
         error: null,
-        charts: {},
+        sparkCharts: {},
 
         async init() {
           this.loading = true;
@@ -163,57 +240,61 @@
           try {
             const res = await fetch('/api/companies');
             if (!res.ok) throw new Error(`Failed to load companies (${res.status})`);
-            this.companies = await res.json();
+            const list = await res.json();
 
-            // Fetch latest snapshot for each company in parallel
-            await Promise.all(this.companies.map(c => this.fetchLatestSnapshot(c)));
+            // Attach snap + history placeholders
+            this.companies = list.map(c => ({ ...c, snap: null, history: [], trends: null }));
+
+            // Fetch latest snapshot + history for each company concurrently
+            await Promise.all(this.companies.map(c => this.loadCompanyData(c)));
           } catch (e) {
             this.error = e.message;
           } finally {
             this.loading = false;
-            // Draw sparklines after DOM updates
-            this.$nextTick(() => this.drawSparklines());
+            this.$nextTick(() => this.drawAllSparklines());
           }
         },
 
-        async fetchLatestSnapshot(company) {
-          company.snapshotLoading = true;
-          company.snapshot = null;
-          company.sparklineData = [];
+        async loadCompanyData(company) {
           try {
-            const res = await fetch(`/api/companies/${company.id}/snapshots/latest`);
-            if (res.ok) {
-              company.snapshot = await res.json();
+            const [latestRes, histRes] = await Promise.all([
+              fetch(`/api/companies/${company.id}/snapshots/latest`),
+              fetch(`/api/companies/${company.id}/snapshots?limit=10`),
+            ]);
+            if (latestRes.ok) {
+              const snap = await latestRes.json();
+              // Filter out the sentinel "no snapshots" response
+              company.snap = (snap && !snap.message) ? snap : null;
+              company.trends = company.snap?.signal_trends ?? null;
             }
-            // Fetch a few snapshots for sparkline
-            const histRes = await fetch(`/api/companies/${company.id}/snapshots?limit=10`);
             if (histRes.ok) {
-              const history = await histRes.json();
-              company.sparklineData = history.map(s => s.momentum_score).reverse();
+              const hist = await histRes.json();
+              company.history = hist
+                .filter(s => s.momentum_score != null)
+                .map(s => s.momentum_score)
+                .reverse(); // oldest → newest
             }
           } catch (_) {
             // silently fail per-company
-          } finally {
-            company.snapshotLoading = false;
           }
         },
 
-        drawSparklines() {
+        drawAllSparklines() {
+          // Destroy old charts
+          Object.values(this.sparkCharts).forEach(c => c.destroy());
+          this.sparkCharts = {};
           this.companies.forEach(company => {
-            if (!company.sparklineData || company.sparklineData.length < 2) return;
+            if (!company.history || company.history.length < 2) return;
             const canvas = document.getElementById(`spark-${company.id}`);
             if (!canvas) return;
-            if (this.charts[company.id]) {
-              this.charts[company.id].destroy();
-            }
-            const score = company.snapshot?.momentum_score ?? 50;
+            const score = company.snap?.momentum_score ?? 50;
             const color = score >= 70 ? '#22c55e' : score >= 40 ? '#eab308' : '#ef4444';
-            this.charts[company.id] = new Chart(canvas, {
+            this.sparkCharts[company.id] = new Chart(canvas, {
               type: 'line',
               data: {
-                labels: company.sparklineData.map((_, i) => i),
+                labels: company.history.map((_, i) => i),
                 datasets: [{
-                  data: company.sparklineData,
+                  data: company.history,
                   borderColor: color,
                   borderWidth: 1.5,
                   pointRadius: 0,
@@ -239,18 +320,67 @@
                 fetch(`/api/companies/${c.id}/refresh`, { method: 'POST' }).catch(() => {})
               )
             );
-            // Destroy existing charts before re-fetching
-            Object.values(this.charts).forEach(c => c.destroy());
-            this.charts = {};
-            await Promise.all(this.companies.map(c => this.fetchLatestSnapshot(c)));
-            this.$nextTick(() => this.drawSparklines());
+            await Promise.all(this.companies.map(c => this.loadCompanyData(c)));
+            this.$nextTick(() => this.drawAllSparklines());
           } finally {
             this.refreshing = false;
           }
         },
 
+        rawSignals(snap) {
+          if (!snap) return {};
+          const parse = (col, def) => {
+            try { return snap[col] ? JSON.parse(snap[col]) : def; } catch { return def; }
+          };
+          const press    = parse('press_data', []);
+          const jobs     = parse('jobs_data', {});
+          const app      = parse('appstore_data', []);
+          const launches = parse('product_launches_data', []);
+          const funding  = parse('funding_data', []);
+          const social   = parse('social_data', []);
+
+          // App rating: average across platforms
+          let avg_rating = null;
+          let rating_label = '';
+          if (app.length > 0) {
+            const rated = app.filter(a => a.avg_rating > 0);
+            if (rated.length > 0) {
+              avg_rating = (rated.reduce((s, a) => s + a.avg_rating, 0) / rated.length).toFixed(1);
+              rating_label = rated.map(a => a.platform).join('/');
+            }
+          }
+
+          // Funding label: show first amount_hint, else signal count
+          let funding_label = null;
+          if (funding.length > 0) {
+            const withAmount = funding.find(f => f.amount_hint);
+            funding_label = withAmount ? withAmount.amount_hint : `${funding.length} signal${funding.length !== 1 ? 's' : ''}`;
+          }
+
+          return {
+            press_count:    press.length,
+            jobs_count:     jobs.total_count ?? null,
+            avg_rating,
+            rating_label,
+            launches_count: launches.length,
+            funding_label,
+            reddit_count:   social.filter(s => s.platform === 'reddit').length,
+          };
+        },
+
+        timeAgo(iso) {
+          if (!iso) return '';
+          const diff = Date.now() - new Date(iso).getTime();
+          const m = Math.floor(diff / 60000);
+          if (m < 1)  return 'just now';
+          if (m < 60) return `${m}m ago`;
+          const h = Math.floor(m / 60);
+          if (h < 24) return `${h}h ago`;
+          return `${Math.floor(h / 24)}d ago`;
+        },
+
         navigate(id) {
-          window.location.href = `company.html?id=${id}`;
+          window.location.href = `/company.html?id=${id}`;
         },
 
         scoreClass(score) {

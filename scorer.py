@@ -5,11 +5,10 @@ from models import SnapshotResult
 
 # --- CONFIGURATION ---
 WEIGHTS = {
-    "press":    0.20,
-    "jobs":     0.25,
-    "linkedin": 0.20,
-    "appstore": 0.15,
-    "launches": 0.15,
+    "press":    0.25,
+    "jobs":     0.30,
+    "appstore": 0.20,
+    "launches": 0.20,
     "funding":  0.05,
 }
 
@@ -62,20 +61,7 @@ def calculate_score(snapshot: SnapshotResult, prev_row=None) -> tuple[int, dict]
     job_growth = 40 if curr_jobs > prev_jobs and curr_jobs > 0 else 0
     breakdown["jobs"] = min(job_base + job_growth, 100)
 
-    # 3. LINKEDIN (Size + Growth Rate)
-    # Note: Using snapshot.linkedin_numeric if you added it to models
-    curr_li = getattr(snapshot, 'headcount_numeric', 0) 
-    prev_li = _prev_data(prev_row, 'linkedin_data').get('headcount_numeric', 0) if prev_row else 0
-    
-    if curr_li > 0:
-        li_base = min(curr_li / 50, 40) # Scale up to 2000 employees
-        # Growth bonus: +60 points if they added ANYONE
-        li_growth = 60 if curr_li > prev_li and prev_li > 0 else 0
-        breakdown["linkedin"] = min(li_base + li_growth, 100)
-    else:
-        breakdown["linkedin"] = 0
-
-    # 4. APP STORE (Rating + Review Volume)
+    # 3. APP STORE (Rating + Review Volume)
     if snapshot.appstore:
         avg_rating = sum(a.avg_rating for a in snapshot.appstore) / len(snapshot.appstore)
         # Normalized rating (4.0/5.0 = 80pts)

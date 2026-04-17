@@ -3,6 +3,7 @@ import re
 from typing import Optional
 from models import AppStoreData, AppReview
 from google_play_scraper import app, reviews, Sort
+from fetchers import g2 as g2_fetcher
 
 
 # Extract app ID from URL
@@ -17,6 +18,10 @@ async def fetch(company) -> list[AppStoreData]:
     if company.play_store_url:
         android = await _fetch_android(company.play_store_url)
         if android: results.append(android)
+    g2_slug = getattr(company, 'g2_slug', None)
+    if g2_slug:
+        g2_data = await g2_fetcher.fetch(g2_slug)
+        if g2_data: results.append(g2_data)
     return results
 
 async def _fetch_ios(url: str) -> Optional[AppStoreData]:
