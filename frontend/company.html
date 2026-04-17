@@ -79,14 +79,26 @@
               <p class="text-xs text-gray-400 mb-2" x-show="latestSnapshot?.fetched_at">
                 Last refreshed <span x-text="timeAgo(latestSnapshot?.fetched_at)"></span>
               </p>
+              <!-- AI highlights: 3 VC-relevant signal bullets -->
+              <template x-if="aiHighlights().length">
+                <ul class="space-y-2 mb-3">
+                  <template x-for="(h, i) in aiHighlights()" :key="i">
+                    <li class="text-sm text-gray-700 leading-snug flex gap-2">
+                      <span class="text-indigo-400 font-bold shrink-0 select-none mt-0.5">·</span>
+                      <span x-text="h"></span>
+                    </li>
+                  </template>
+                </ul>
+              </template>
+              <!-- Fallback prose blurb for older snapshots without highlights -->
               <p
-                x-show="latestSnapshot?.ai_blurb"
-                class="text-gray-600 text-sm leading-relaxed"
+                x-show="!aiHighlights().length && latestSnapshot?.ai_blurb"
+                class="text-gray-600 text-sm leading-relaxed mb-3"
                 x-text="latestSnapshot?.ai_blurb"
               ></p>
               <p
-                x-show="!latestSnapshot?.ai_blurb"
-                class="text-gray-300 text-sm italic"
+                x-show="!aiHighlights().length && !latestSnapshot?.ai_blurb"
+                class="text-gray-300 text-sm italic mb-3"
               >No summary yet — run a refresh to generate one.</p>
 
               <!-- 3-month comparison pill strip -->
@@ -630,6 +642,15 @@
               }
             });
           }
+        },
+
+        aiHighlights() {
+          const raw = this.latestSnapshot?.ai_highlights;
+          if (!raw) return [];
+          try {
+            const parsed = JSON.parse(raw);
+            return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+          } catch { return []; }
         },
 
         timeAgo(iso) {

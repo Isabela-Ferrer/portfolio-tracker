@@ -80,8 +80,8 @@
               <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">📱 Rating</th>
               <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">🚀 Launches</th>
               <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">💰 Funding</th>
-              <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">🟠 Reddit</th>
-              <th class="text-left text-xs font-medium text-gray-400 px-3 py-3 min-w-[180px]">AI Summary</th>
+              <th class="text-left text-xs font-medium text-gray-400 px-3 py-3 min-w-[200px]">🟠 Reddit</th>
+              <th class="text-left text-xs font-medium text-gray-400 px-3 py-3 min-w-[220px]">⚡ Key signals</th>
             </tr>
           </thead>
           <tbody>
@@ -198,30 +198,46 @@
                   <span x-show="!rawSignals(company.snap).funding_label" class="text-xs text-gray-300">—</span>
                 </td>
 
-                <!-- Reddit: post count -->
-                <td class="px-3 py-3 text-right">
-                  <template x-if="rawSignals(company.snap).reddit_count != null">
-                    <div class="inline-flex flex-col items-end gap-0.5">
-                      <span class="text-xs font-medium text-gray-700" x-text="rawSignals(company.snap).reddit_count"></span>
+                <!-- Reddit: top 3 post titles as bullets -->
+                <td class="px-3 py-3 min-w-[200px]">
+                  <template x-if="rawSignals(company.snap).reddit_bullets?.length">
+                    <div>
+                      <ul class="space-y-1">
+                        <template x-for="(bullet, i) in rawSignals(company.snap).reddit_bullets" :key="i">
+                          <li class="text-xs text-gray-600 leading-snug flex gap-1.5">
+                            <span class="text-orange-300 shrink-0 select-none">•</span>
+                            <span x-text="bullet"></span>
+                          </li>
+                        </template>
+                      </ul>
                       <template x-if="company.trends?.reddit && company.trends.reddit.direction !== 'flat'">
-                        <span class="text-[10px] font-medium leading-none"
+                        <p class="text-[10px] font-medium mt-1 leading-none"
                           :class="company.trends.reddit.direction === 'up' ? 'text-green-500' : 'text-red-400'"
-                          x-text="(company.trends.reddit.delta > 0 ? '+' : '') + company.trends.reddit.delta"
-                        ></span>
+                          x-text="(company.trends.reddit.delta > 0 ? '+' : '') + company.trends.reddit.delta + ' vs last month'"
+                        ></p>
                       </template>
                     </div>
                   </template>
-                  <span x-show="rawSignals(company.snap).reddit_count == null" class="text-xs text-gray-300">—</span>
+                  <span x-show="!rawSignals(company.snap).reddit_bullets?.length" class="text-xs text-gray-300">—</span>
                 </td>
 
-                <!-- AI blurb -->
-                <td class="px-3 py-3 max-w-xs">
-                  <p
-                    x-show="company.snap?.ai_blurb"
-                    class="text-xs text-gray-500 line-clamp-2 leading-snug"
-                    x-text="company.snap?.ai_blurb"
-                  ></p>
-                  <p x-show="!company.snap?.ai_blurb" class="text-xs text-gray-300 italic">—</p>
+                <!-- AI key signals (3 VC-relevant bullets) -->
+                <td class="px-3 py-3 min-w-[220px]">
+                  <template x-if="aiHighlights(company.snap).length">
+                    <ul class="space-y-1">
+                      <template x-for="(h, i) in aiHighlights(company.snap)" :key="i">
+                        <li class="text-xs text-gray-600 leading-snug flex gap-1.5">
+                          <span class="text-indigo-300 shrink-0 select-none font-bold">·</span>
+                          <span x-text="h"></span>
+                        </li>
+                      </template>
+                    </ul>
+                  </template>
+                  <!-- fallback: prose blurb for old snapshots without highlights -->
+                  <template x-if="!aiHighlights(company.snap).length && company.snap?.ai_blurb">
+                    <p class="text-xs text-gray-500 line-clamp-3 leading-snug" x-text="company.snap.ai_blurb"></p>
+                  </template>
+                  <span x-show="!aiHighlights(company.snap).length && !company.snap?.ai_blurb" class="text-xs text-gray-300">—</span>
                 </td>
               </tr>
             </template>
@@ -374,22 +390,34 @@
                 if (press_bullets.length < 3) press_bullets.push(kp);
               }
             } else if (press_bullets.length < 3 && article.title) {
-              // fallback: use raw headline when AI hasn't run yet
               press_bullets.push(article.title);
             }
             if (press_bullets.length >= 3) break;
           }
 
+          // Reddit bullets: top 3 post titles from reddit social signals
+          const reddit_posts = social.filter(s => s.platform === 'reddit');
+          const reddit_bullets = reddit_posts.slice(0, 3).map(s => s.content).filter(Boolean);
+
           return {
             press_bullets,
-            press_count:    press.length,   // still used for trend delta label
+            press_count:    press.length,
             jobs_count:     jobs.total_count ?? null,
             avg_rating,
             rating_label,
             launches_count: launches.length,
             funding_label,
-            reddit_count:   social.filter(s => s.platform === 'reddit').length,
+            reddit_bullets,
+            reddit_count:   reddit_posts.length,
           };
+        },
+
+        aiHighlights(snap) {
+          if (!snap?.ai_highlights) return [];
+          try {
+            const parsed = JSON.parse(snap.ai_highlights);
+            return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
+          } catch { return []; }
         },
 
         timeAgo(iso) {

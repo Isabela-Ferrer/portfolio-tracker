@@ -3,7 +3,7 @@ from database import get_conn
 from models import SnapshotResult
 from fetchers import press, jobs, appstore, product_launches, funding, reddit
 from scorer import calculate_score
-from ai_narrator import generate_blurb
+from ai_narrator import generate_blurb, generate_highlights
 from database import (
     _get_previous_snapshot, _save_snapshot,
     save_signal_metrics, get_metrics_history,
@@ -53,9 +53,10 @@ async def refresh_company(company) -> dict:
 
     score, breakdown = calculate_score(snapshot, prev)
     blurb = generate_blurb(company.name, snapshot, score)
+    highlights = generate_highlights(company.name, snapshot, score)
 
     # Persist snapshot (returns new snapshot_id)
-    snapshot_id = _save_snapshot(snapshot, score, breakdown, blurb)
+    snapshot_id = _save_snapshot(snapshot, score, breakdown, blurb, highlights)
 
     # Extract and persist numeric metrics for this snapshot
     metrics = extract_metrics(snapshot, score)

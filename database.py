@@ -75,6 +75,7 @@ def _migrate_db():
     migrations = [
         "ALTER TABLE snapshots ADD COLUMN social_data TEXT",
         "ALTER TABLE companies ADD COLUMN g2_slug TEXT",
+        "ALTER TABLE snapshots ADD COLUMN ai_highlights TEXT",
     ]
     with get_conn() as conn:
         for stmt in migrations:
@@ -93,22 +94,23 @@ def _get_previous_snapshot(company_id: int):
         ).fetchone()
         return dict(row) if row else None
 
-def _save_snapshot(snapshot, score, breakdown, blurb) -> int:
+def _save_snapshot(snapshot, score, breakdown, blurb, highlights="") -> int:
     """Converts Python objects to JSON and saves to SQLite. Returns the new snapshot_id."""
     with get_conn() as conn:
         sql = """
             INSERT INTO snapshots (
-                company_id, momentum_score, score_breakdown, ai_blurb,
+                company_id, momentum_score, score_breakdown, ai_blurb, ai_highlights,
                 press_data, jobs_data,
                 appstore_data, product_launches_data, funding_data,
                 social_data, error_log
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
         cursor = conn.execute(sql, (
             snapshot.company_id,
             score,
             json.dumps(breakdown),
             blurb,
+            highlights,
             json.dumps([asdict(p) for p in snapshot.press]),
             json.dumps(asdict(snapshot.jobs) if snapshot.jobs else {}),
             json.dumps([asdict(a) for a in snapshot.appstore]),
