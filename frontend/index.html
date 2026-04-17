@@ -206,10 +206,18 @@
                   <span x-show="rawSignals(company.snap).launches_count == null" class="text-xs text-gray-300">—</span>
                 </td>
 
-                <!-- Funding: amount hint or count -->
+                <!-- Funding: amount + round type + date -->
                 <td class="px-3 py-3 text-right">
                   <template x-if="rawSignals(company.snap).funding_label">
-                    <span class="text-xs font-medium text-gray-700" x-text="rawSignals(company.snap).funding_label"></span>
+                    <div class="inline-flex flex-col items-end gap-0.5">
+                      <span class="text-xs font-medium text-gray-700" x-text="rawSignals(company.snap).funding_label"></span>
+                      <span x-show="rawSignals(company.snap).funding_sublabel"
+                        class="text-[10px] text-gray-400"
+                        x-text="rawSignals(company.snap).funding_sublabel"></span>
+                      <span x-show="rawSignals(company.snap).funding_extra"
+                        class="text-[10px] text-gray-400 italic"
+                        x-text="rawSignals(company.snap).funding_extra"></span>
+                    </div>
                   </template>
                   <span x-show="!rawSignals(company.snap).funding_label" class="text-xs text-gray-300">—</span>
                 </td>
@@ -389,11 +397,31 @@
             }
           }
 
-          // Funding label: show first amount_hint, else signal count
-          let funding_label = null;
+          // Funding: pick the most informative signal (prefer one with amount or round_type),
+          // then format as "Amount RoundType" + a date sub-label so it's clear what it refers to.
+          let funding_label    = null;
+          let funding_sublabel = null;
+          let funding_extra    = null;   // "+N more" when multiple rounds detected
           if (funding.length > 0) {
-            const withAmount = funding.find(f => f.amount_hint);
-            funding_label = withAmount ? withAmount.amount_hint : `${funding.length} signal${funding.length !== 1 ? 's' : ''}`;
+            const best = funding.find(f => f.amount_hint || f.round_type) ?? funding[0];
+            const parts = [];
+            if (best.amount_hint) parts.push(best.amount_hint);
+            if (best.round_type)  parts.push(best.round_type);
+            funding_label = parts.length ? parts.join(' ') : `${funding.length} article${funding.length !== 1 ? 's' : ''}`;
+
+            // Date: parse RFC 2822 or ISO, format as "Mon YYYY"
+            if (best.date) {
+              try {
+                const d = new Date(best.date);
+                if (!isNaN(d)) {
+                  funding_sublabel = d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+                }
+              } catch {}
+            }
+
+            // Show "+N more" if other distinct rounds exist beyond the best signal
+            const others = funding.filter(f => f !== best && (f.amount_hint || f.round_type));
+            if (others.length > 0) funding_extra = `+${others.length} more`;
           }
 
           // Press bullets: up to 3 AI key_points pooled from articles in order.
@@ -423,6 +451,8 @@
             rating_label,
             launches_count: launches.length,
             funding_label,
+            funding_sublabel,
+            funding_extra,
             reddit_bullets,
             reddit_count:   reddit_posts.length,
           };
