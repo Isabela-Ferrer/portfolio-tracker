@@ -1,15 +1,15 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from dataclasses import asdict
 from models import SnapshotResult
 
 # --- CONFIGURATION ---
 WEIGHTS = {
-    "press":    0.20,
-    "jobs":     0.25,
-    "linkedin": 0.20,
-    "appstore": 0.15,
-    "launches": 0.15,
+    "press":    0.25,
+    "jobs":     0.30,
+    "appstore": 0.20,
+    "launches": 0.20,
     "funding":  0.05,
 }
 
@@ -26,18 +26,39 @@ def _prev_data(prev_row, key: str):
     except (json.JSONDecodeError, TypeError):
         return None
 
+def _parse_date(date_str: str) -> datetime | None:
+    """
+    Parse a date string in any of the formats we encounter:
+      - ISO 8601:   "2025-04-15T10:00:00Z"  (GitHub Atom)
+      - RFC 2822:   "Tue, 15 Apr 2025 10:00:00 GMT"  (Google News RSS / funding)
+    Returns a timezone-aware datetime, or None if unparseable.
+    """
+    if not date_str:
+        return None
+    # Try ISO 8601 first (covers GitHub, Reddit Atom)
+    try:
+        return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+    except (ValueError, AttributeError):
+        pass
+    # Try RFC 2822 (covers Google News RSS pubDate used by funding fetcher)
+    try:
+        return parsedate_to_datetime(date_str)
+    except Exception:
+        pass
+    return None
+
+
 def _count_recent(items, days=60) -> int:
     """Generic counter for list-based signals (launches, funding)."""
-    if not items: return 0
-    cutoff = datetime.now() - timedelta(days=days)
+    if not items:
+        return 0
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     count = 0
     for item in items:
-        try:
-            # Handle potential different date formats from RSS/API
-            date_str = item.date if hasattr(item, 'date') else item.get('date')
-            dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-            if dt > cutoff: count += 1
-        except: continue
+        date_str = item.date if hasattr(item, 'date') else item.get('date', '')
+        dt = _parse_date(date_str)
+        if dt is not None and dt > cutoff:
+            count += 1
     return count
 
 # --- THE MAIN SCORER ---
@@ -62,20 +83,7 @@ def calculate_score(snapshot: SnapshotResult, prev_row=None) -> tuple[int, dict]
     job_growth = 40 if curr_jobs > prev_jobs and curr_jobs > 0 else 0
     breakdown["jobs"] = min(job_base + job_growth, 100)
 
-    # 3. LINKEDIN (Size + Growth Rate)
-    # Note: Using snapshot.linkedin_numeric if you added it to models
-    curr_li = getattr(snapshot, 'headcount_numeric', 0) 
-    prev_li = _prev_data(prev_row, 'linkedin_data').get('headcount_numeric', 0) if prev_row else 0
-    
-    if curr_li > 0:
-        li_base = min(curr_li / 50, 40) # Scale up to 2000 employees
-        # Growth bonus: +60 points if they added ANYONE
-        li_growth = 60 if curr_li > prev_li and prev_li > 0 else 0
-        breakdown["linkedin"] = min(li_base + li_growth, 100)
-    else:
-        breakdown["linkedin"] = 0
-
-    # 4. APP STORE (Rating + Review Volume)
+    # 3. APP STORE (Rating + Review Volume)
     if snapshot.appstore:
         avg_rating = sum(a.avg_rating for a in snapshot.appstore) / len(snapshot.appstore)
         # Normalized rating (4.0/5.0 = 80pts)
