@@ -32,7 +32,7 @@
           <img
             :src="logoUrl(company.website_url)"
             class="absolute inset-0 w-full h-full object-contain bg-white p-0.5 rounded-xl"
-            @error="$event.target.style.display='none'"
+            @error="onLogoError($event, company.website_url)"
             loading="lazy"
           />
         </div>
@@ -658,13 +658,27 @@
           }
         },
 
-        logoUrl(website_url) {
+        _domain(website_url) {
           if (!website_url) return '';
           try {
             const url = website_url.startsWith('http') ? website_url : 'https://' + website_url;
-            const domain = new URL(url).hostname.replace(/^www\./, '');
-            return `https://logo.clearbit.com/${domain}`;
+            return new URL(url).hostname.replace(/^www\./, '');
           } catch { return ''; }
+        },
+
+        logoUrl(website_url) {
+          const d = this._domain(website_url);
+          return d ? `https://logo.clearbit.com/${d}` : '';
+        },
+
+        onLogoError(event, website_url) {
+          const d = this._domain(website_url);
+          if (d && !event.target.dataset.fallback) {
+            event.target.dataset.fallback = '1';
+            event.target.src = `https://www.google.com/s2/favicons?domain=${d}&sz=64`;
+          } else {
+            event.target.style.display = 'none';
+          }
         },
 
         letterBgColor(name) {
