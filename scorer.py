@@ -1,5 +1,6 @@
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from email.utils import parsedate_to_datetime
 from dataclasses import asdict
 from models import SnapshotResult
 
@@ -25,18 +26,39 @@ def _prev_data(prev_row, key: str):
     except (json.JSONDecodeError, TypeError):
         return None
 
+def _parse_date(date_str: str) -> datetime | None:
+    """
+    Parse a date string in any of the formats we encounter:
+      - ISO 8601:   "2025-04-15T10:00:00Z"  (GitHub Atom)
+      - RFC 2822:   "Tue, 15 Apr 2025 10:00:00 GMT"  (Google News RSS / funding)
+    Returns a timezone-aware datetime, or None if unparseable.
+    """
+    if not date_str:
+        return None
+    # Try ISO 8601 first (covers GitHub, Reddit Atom)
+    try:
+        return datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+    except (ValueError, AttributeError):
+        pass
+    # Try RFC 2822 (covers Google News RSS pubDate used by funding fetcher)
+    try:
+        return parsedate_to_datetime(date_str)
+    except Exception:
+        pass
+    return None
+
+
 def _count_recent(items, days=60) -> int:
     """Generic counter for list-based signals (launches, funding)."""
-    if not items: return 0
-    cutoff = datetime.now() - timedelta(days=days)
+    if not items:
+        return 0
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     count = 0
     for item in items:
-        try:
-            # Handle potential different date formats from RSS/API
-            date_str = item.date if hasattr(item, 'date') else item.get('date')
-            dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-            if dt > cutoff: count += 1
-        except: continue
+        date_str = item.date if hasattr(item, 'date') else item.get('date', '')
+        dt = _parse_date(date_str)
+        if dt is not None and dt > cutoff:
+            count += 1
     return count
 
 # --- THE MAIN SCORER ---
