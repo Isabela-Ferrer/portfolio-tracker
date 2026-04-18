@@ -57,12 +57,18 @@ def _is_relevant(
        This stops e.g. "Notion" matching "notional" or "Arc" matching "arcade".
     2. If the post links directly to the company's domain → accept immediately
        (link posts to the company's own site are almost certainly on-topic).
-    3. Reject posts from generic/entertainment subreddits.
-    4. Title must contain at least one business/tech signal word, confirming
-       the post is discussing the product rather than mentioning the name in passing.
+    3. Company-specific subreddit (e.g. r/notion, r/cursor) → accept immediately.
+       Being in the company's own sub is strong on-topic evidence.
+    4. Reject posts from generic/entertainment subreddits.
+    5. For longer names (> 6 chars), the word-boundary match alone is strong
+       enough evidence — distinctive names like "Anthropic", "Harvey", "Waymo"
+       are unlikely to appear incidentally. Skip the signal-word gate.
+    6. For short/common names (≤ 6 chars, e.g. "Arc", "Beam") require at least
+       one business/tech signal word to avoid false positives like "arc of history".
     """
     title_lower = title.lower()
     name_lower = company_name.lower()
+    name_slug = name_lower.replace(' ', '')
 
     # 1. Word-boundary check — whole-word match only
     if not re.search(r'\b' + re.escape(name_lower) + r'\b', title_lower):
@@ -72,17 +78,24 @@ def _is_relevant(
     if company_domain and company_domain in post_url.lower():
         return True
 
-    # 3. Noise subreddit → reject
     subreddit = _subreddit_from_url(post_url)
+
+    # 3. Company-specific subreddit → accept immediately
+    if subreddit and subreddit in (name_lower, name_slug, name_lower.replace(' ', '_')):
+        return True
+
+    # 4. Noise subreddit → reject
     if subreddit and subreddit in _NOISE_SUBREDDITS:
         return False
 
-    # 4. Must have at least one business/tech signal word in the title
-    title_words = set(re.findall(r'\b\w+\b', title_lower))
-    if not title_words.intersection(_SIGNAL_WORDS):
-        return False
+    # 5. Longer/distinctive names don't need a signal word — the name match is enough
+    if len(name_lower) > 6:
+        return True
 
-    return True
+    # 6. Short name: require at least one business/tech signal word in the title
+    title_words = set(re.findall(r'\b\w+\b', title_lower))
+    return bool(title_words.intersection(_SIGNAL_WORDS))
+
 
 
 async def fetch(company) -> List[SocialSignal]:
