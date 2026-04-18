@@ -10,10 +10,12 @@ _BIZ_SIGNALS = frozenset([
     'startup', 'company', 'funding', 'raises', 'raised', 'ceo', 'cto', 'cfo',
     'co-founder', 'cofounder', 'founded', 'fintech', 'saas', 'valuation',
     'series', 'seed round', 'ipo', 'acquisition', 'acquires', 'acquired',
-    'revenue', 'launches', 'platform', 'customers', 'enterprise',
+    'revenue', 'launches', 'launch', 'platform', 'customers', 'enterprise',
     'announces', 'announcement', 'partners', 'partnership', 'expands',
     'hires', 'appoints', 'investors', 'unicorn', 'layoffs', 'employees',
     'product launch', 'api', 'integration', 'raises capital',
+    'review', 'product', 'growth', 'million', 'billion', 'market',
+    'feature', 'tool', 'service', 'software', 'app', 'raises',
 ])
 
 _TAG_RE    = re.compile(r'<[^>]+>')
@@ -50,21 +52,17 @@ _FALSE_POS_RE = re.compile(
 
 def _is_about_company(title: str, snippet: str, company_name: str, domain: str) -> bool:
     """
-    Returns True only when the article is genuinely about this company.
+    Returns True only when the article is genuinely about this company
+    and discusses it in a business context.
 
-    The previous logic had a critical bug: the _BIZ_SIGNALS block was a
-    standalone pass condition with no company-name requirement, so any
-    article containing words like 'startup', 'announces', or 'funding'
-    would pass for every company regardless of whether the company was
-    mentioned at all.
-
-    New logic:
+    Logic:
     1. Company name MUST appear as a whole word in the title — hard gate.
-    2. For short/ambiguous names (≤5 chars) that double as common nouns
-       (Arc, Beam, Plain, Mesh…), at least one business-signal word must
-       also appear in the title or RSS snippet to confirm context.
-    3. Reject grammatical false positives where the name follows a generic
+    2. Reject grammatical false positives where the name follows a generic
        determiner/adjective: "a linear approach", "the arc of history", etc.
+    3. At least one business-signal word must appear in the title or snippet
+       for ALL companies. This ensures we only surface articles that are about
+       the company's business activities (funding, product, hiring, etc.) rather
+       than passing name mentions in unrelated coverage.
     """
     t = title.lower()
     name_lower = company_name.lower()
@@ -73,19 +71,20 @@ def _is_about_company(title: str, snippet: str, company_name: str, domain: str) 
     if not re.search(r'\b' + re.escape(name_lower) + r'\b', t):
         return False
 
-    # 2. Short/common names need business context to confirm they refer to
-    #    the company and not a generic noun or adjective.
-    if len(name_lower) <= 5:
-        combined = t + ' ' + (snippet or '').lower()
-        if not any(sig in combined for sig in _BIZ_SIGNALS):
-            return False
-
-    # 3. Reject false positives where the name is used as a generic word
+    # 2. Reject false positives where the name is used as a generic word
     #    following a determiner or generic qualifier.
     if len(name_lower) <= 7:
         pattern = _FALSE_POS_RE.pattern + re.escape(name_lower) + r'\b'
         if re.search(pattern, t, re.IGNORECASE):
             return False
+
+    # 3. Require at least one business-signal word in title or snippet.
+    #    Checks the title first (fast), then falls back to the first 600 chars
+    #    of the snippet. This catches articles where the signal word appears
+    #    in the article body but not the headline.
+    combined = t + ' ' + (snippet or '')[:600].lower()
+    if not any(sig in combined for sig in _BIZ_SIGNALS):
+        return False
 
     return True
 
