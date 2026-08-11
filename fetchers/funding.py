@@ -9,6 +9,26 @@ AMOUNT_RE = re.compile(r'[\$€£][\d.]+\s*[MBKmb](?:illion)?')
 _TAG_RE   = re.compile(r'<[^>]+>')
 _SPACE_RE = re.compile(r'\s+')
 
+# The news queries below are keyword searches, so they happily return roundup
+# pieces like "The July US Venture Capital Funding Report". Without a gate every
+# company looks like it raised every week and the funding flag means nothing.
+_ROUND_RE = re.compile(
+    r'\b(raises?|raised|raising|funding round|series\s+[a-j]\b|seed round|'
+    r'pre-seed|valuation|valued at|investment round|led the round|led by|'
+    r'closes?\s+\$|secures?\s+\$|lands?\s+\$|nets?\s+\$)',
+    re.IGNORECASE,
+)
+
+
+def _is_funding_news(title: str, snippet: str, company_name: str) -> bool:
+    """Require the company by name in the headline and actual round language."""
+    name = (company_name or '').strip().lower()
+    if not name:
+        return False
+    if not re.search(r'\b' + re.escape(name) + r'\b', (title or '').lower()):
+        return False
+    return bool(_ROUND_RE.search(f"{title} {(snippet or '')[:400]}"))
+
 
 def _extract_domain(company) -> str:
     url = company.website_url or ''
@@ -80,6 +100,9 @@ async def fetch(company) -> list[FundingSignal]:
                     title  = item.findtext("title", "")
                     amount = AMOUNT_RE.search(title)
                     desc   = _clean_html(item.findtext("description", ""))
+
+                    if not _is_funding_news(title, desc, name):
+                        continue
 
                     signals.append(FundingSignal(
                         title=title,

@@ -3,535 +3,368 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Settings — Portfolio Momentum Tracker</title>
+  <title>Settings</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <style>
-    [x-cloak] { display: none !important; }
-  </style>
+  <style>[x-cloak] { display: none !important; }</style>
 </head>
-<body class="bg-gray-50 min-h-screen" x-data="settingsApp()" x-init="init()">
+<body class="bg-gray-50 min-h-screen" x-data="settings()" x-init="init()">
 
-  <!-- Header -->
   <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-    <div class="max-w-3xl mx-auto px-6 py-4 flex items-center gap-4">
-      <a href="/" class="text-gray-400 hover:text-gray-700 transition-colors">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-      </a>
-      <div>
-        <h1 class="text-xl font-semibold text-gray-900 tracking-tight">Settings</h1>
-        <p class="text-xs text-gray-400 mt-0.5">Manage tracked companies</p>
+    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="text-gray-400 hover:text-gray-600 text-sm">&larr; Dashboard</a>
+        <h1 class="text-xl font-semibold text-gray-900">Settings</h1>
       </div>
+      <div class="text-xs text-gray-400" x-text="schedulerLine"></div>
     </div>
   </header>
 
-  <main class="max-w-3xl mx-auto px-6 py-8 space-y-8">
+  <main class="max-w-5xl mx-auto px-6 py-8 space-y-6">
 
-    <!-- Toast notification -->
-    <div
-      x-show="toast.visible"
-      x-cloak
-      x-transition:enter="transition ease-out duration-200"
-      x-transition:enter-start="opacity-0 translate-y-2"
-      x-transition:enter-end="opacity-100 translate-y-0"
-      x-transition:leave="transition ease-in duration-150"
-      x-transition:leave-start="opacity-100"
-      x-transition:leave-end="opacity-0"
-      class="fixed bottom-6 right-6 z-50 flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-sm font-medium"
-      :class="toast.type === 'error' ? 'bg-red-600 text-white' : 'bg-gray-900 text-white'"
-      x-text="toast.message"
-    ></div>
-
-    <!-- Add Company Form -->
-    <section>
-      <h2 class="text-sm font-semibold text-gray-700 mb-4">Add Company</h2>
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <form @submit.prevent="addCompany()" class="space-y-5">
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <!-- Name (required) -->
-            <div class="sm:col-span-2">
-              <label for="field-name" class="block text-xs font-medium text-gray-600 mb-1.5">
-                Company Name <span class="text-red-400">*</span>
-              </label>
-              <input
-                id="field-name"
-                type="text"
-                x-model="form.name"
-                placeholder="e.g. Acme Corp"
-                required
-                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
-              />
-            </div>
-
-            <!-- Website URL (required) -->
-            <div class="sm:col-span-2">
-              <label for="field-website-url" class="block text-xs font-medium text-gray-600 mb-1.5">
-                Website URL <span class="text-red-400">*</span>
-              </label>
-              <input
-                id="field-website-url"
-                type="url"
-                x-model="form.website_url"
-                placeholder="https://example.com"
-                required
-                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
-              />
-            </div>
-
-            <!-- App Store URL (optional) -->
-            <div class="sm:col-span-2">
-              <label for="field-app-store-url" class="block text-xs font-medium text-gray-600 mb-1.5">App Store URL</label>
-              <input
-                id="field-app-store-url"
-                type="url"
-                x-model="form.app_store_url"
-                placeholder="https://apps.apple.com/app/id…"
-                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
-              />
-            </div>
-
-            <!-- GitHub Org + Repo (optional) -->
-            <div>
-              <label for="field-github-org" class="block text-xs font-medium text-gray-600 mb-1.5">GitHub Org</label>
-              <input
-                id="field-github-org"
-                type="text"
-                x-model="form.github_org"
-                placeholder="e.g. stripe"
-                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
-              />
-            </div>
-            <div>
-              <label for="field-github-repo" class="block text-xs font-medium text-gray-600 mb-1.5">GitHub Repo</label>
-              <input
-                id="field-github-repo"
-                type="text"
-                x-model="form.github_repo"
-                placeholder="e.g. stripe-python"
-                class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
-              />
-            </div>
-
-            <!-- Product Hunt Slug (optional) -->
-            <div class="sm:col-span-2">
-              <label for="field-product-hunt-slug" class="block text-xs font-medium text-gray-600 mb-1.5">Product Hunt Slug</label>
-              <div class="flex items-center">
-                <span class="px-3 py-2 text-sm text-gray-400 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg select-none">producthunt.com/@</span>
-                <input
-                  id="field-product-hunt-slug"
-                  type="text"
-                  x-model="form.product_hunt_slug"
-                  placeholder="notion"
-                  class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
-                />
-              </div>
-            </div>
-
-            <!-- G2 Slug (optional) -->
-            <div class="sm:col-span-2">
-              <label for="field-g2-slug" class="block text-xs font-medium text-gray-600 mb-1.5">G2 Slug</label>
-              <div class="flex items-center">
-                <span class="px-3 py-2 text-sm text-gray-400 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg select-none">g2.com/products/</span>
-                <input
-                  id="field-g2-slug"
-                  type="text"
-                  x-model="form.g2_slug"
-                  placeholder="notion/reviews"
-                  class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder-gray-300 transition"
-                />
-              </div>
-              <p class="text-[11px] text-gray-400 mt-1">The slug from the G2 URL, e.g. <code class="bg-gray-100 px-1 rounded">notion</code> for g2.com/products/notion/reviews</p>
-            </div>
-          </div>
-
-          <!-- Inline error banner -->
-          <div
-            x-show="formError"
-            x-cloak
-            class="flex items-start gap-2 px-3 py-2.5 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700"
-          >
-            <svg class="w-4 h-4 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            <span x-text="formError"></span>
-          </div>
-
-          <div class="flex items-center justify-end gap-3 pt-1">
-            <button
-              type="button"
-              @click="resetForm()"
-              class="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            >Clear</button>
-            <button
-              type="submit"
-              :disabled="submitting || !form.name.trim() || !form.website_url.trim()"
-              class="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            >
-              <svg x-show="submitting" class="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"></path>
-              </svg>
-              <span x-text="submitting ? 'Adding…' : 'Add Company'"></span>
-            </button>
-          </div>
-        </form>
+    <!-- Add company -->
+    <section class="bg-white rounded-xl border border-gray-100 p-6">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Add a company</h2>
+      <p class="text-xs text-gray-400 mb-3">
+        Name and website is enough. The ATS board, blog feed and changelog are discovered
+        automatically, and anything that cannot be verified is marked as not found.
+      </p>
+      <div class="flex flex-wrap gap-2">
+        <input x-model="newCompany.name" placeholder="Company name"
+               class="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-[180px]">
+        <input x-model="newCompany.website" placeholder="https://example.com"
+               class="border border-gray-200 rounded-lg px-3 py-2 text-sm flex-1 min-w-[220px]">
+        <button @click="addCompany()" :disabled="adding || !newCompany.name"
+                class="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg disabled:opacity-50"
+                x-text="adding ? 'Discovering…' : 'Add and discover'"></button>
       </div>
+      <div x-show="addResult" x-cloak class="mt-3 text-xs" :class="addOk ? 'text-emerald-700' : 'text-rose-600'"
+           x-text="addResult"></div>
     </section>
 
-    <!-- Company List -->
-    <section>
-      <div class="flex items-center justify-between mb-4">
-        <h2 class="text-sm font-semibold text-gray-700">
-          Tracked Companies
-          <span x-show="companies.length > 0" class="ml-1.5 text-xs font-normal text-gray-400" x-text="'(' + companies.length + ')'"></span>
-        </h2>
-      </div>
+    <!-- Companies -->
+    <section class="space-y-3">
+      <template x-for="c in companies" :key="c.id">
+        <div class="bg-white rounded-xl border border-gray-100 p-5" :id="'company-' + c.id">
 
-      <!-- Loading -->
-      <div x-show="loading" x-cloak class="space-y-2">
-        <template x-for="i in 3" :key="i">
-          <div class="bg-white rounded-xl border border-gray-100 h-16 animate-pulse"></div>
-        </template>
-      </div>
-
-      <!-- Empty -->
-      <div x-show="!loading && companies.length === 0" x-cloak class="bg-white rounded-xl border border-gray-100 shadow-sm p-10 text-center">
-        <p class="text-sm text-gray-400">No companies yet. Add one above.</p>
-      </div>
-
-      <!-- List -->
-      <div x-show="!loading && companies.length > 0" x-cloak class="space-y-2">
-        <template x-for="company in companies" :key="company.id">
-          <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-
-            <!-- View row -->
-            <div x-show="editingId !== company.id" class="px-5 py-4 flex items-center gap-4">
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-2 flex-wrap">
-                  <span class="text-sm font-medium text-gray-800 truncate" x-text="company.name"></span>
-                  <span
-                    x-show="company.github_org"
-                    class="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded"
-                    x-text="company.github_org"
-                  ></span>
-                  <span
-                    x-show="company.product_hunt_slug"
-                    class="text-xs text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-full"
-                    x-text="'PH: ' + company.product_hunt_slug"
-                  ></span>
-                </div>
-                <p
-                  x-show="company.website_url"
-                  class="text-xs text-gray-400 truncate mt-0.5"
-                  x-text="company.website_url"
-                ></p>
+          <div class="flex items-start justify-between gap-4">
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <a :href="'/company.html?id=' + c.id"
+                   class="font-medium text-gray-900 hover:underline" x-text="c.name"></a>
+                <span class="text-xs text-gray-400" x-text="c.website"></span>
               </div>
-              <div class="flex items-center gap-1 flex-shrink-0">
-                <a
-                  :href="`company.html?id=${company.id}`"
-                  class="p-1.5 text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
-                  title="View"
-                >
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                  </svg>
-                </a>
-                <button
-                  @click="startEdit(company)"
-                  class="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-                  title="Edit"
-                >
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                  </svg>
-                </button>
-                <button
-                  @click="confirmDelete(company)"
-                  class="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-                  title="Delete"
-                >
-                  <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                  </svg>
-                </button>
+              <div class="mt-1 flex flex-wrap gap-2 text-xs">
+                <template x-for="miss in (c.discovery && c.discovery.not_found) || []" :key="miss">
+                  <span class="px-1.5 py-0.5 rounded bg-rose-50 text-rose-600"
+                        x-text="'not found: ' + miss.replace('_', ' ')"></span>
+                </template>
               </div>
             </div>
-
-            <!-- Inline edit row -->
-            <div x-show="editingId === company.id" x-cloak class="px-5 py-4 bg-blue-50 border-t border-blue-100">
-              <p class="text-xs font-semibold text-blue-600 mb-3">Editing: <span x-text="company.name"></span></p>
-              <form @submit.prevent="saveEdit(company.id)" class="space-y-3">
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Name <span class="text-red-400">*</span></label>
-                    <input
-                      type="text"
-                      x-model="editForm.name"
-                      required
-                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
-                    />
-                  </div>
-                  <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Website URL <span class="text-red-400">*</span></label>
-                    <input
-                      type="url"
-                      x-model="editForm.website_url"
-                      required
-                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
-                    />
-                  </div>
-                  <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">App Store URL</label>
-                    <input
-                      type="url"
-                      x-model="editForm.app_store_url"
-                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
-                    />
-                  </div>
-                  <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">GitHub Org</label>
-                    <input
-                      type="text"
-                      x-model="editForm.github_org"
-                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
-                    />
-                  </div>
-                  <div>
-                    <label class="block text-xs font-medium text-gray-600 mb-1">GitHub Repo</label>
-                    <input
-                      type="text"
-                      x-model="editForm.github_repo"
-                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
-                    />
-                  </div>
-                  <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">Product Hunt Slug</label>
-                    <input
-                      type="text"
-                      x-model="editForm.product_hunt_slug"
-                      class="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
-                    />
-                  </div>
-                  <div class="sm:col-span-2">
-                    <label class="block text-xs font-medium text-gray-600 mb-1">G2 Slug</label>
-                    <div class="flex items-center">
-                      <span class="px-3 py-2 text-sm text-gray-400 bg-gray-50 border border-r-0 border-gray-200 rounded-l-lg select-none">g2.com/products/</span>
-                      <input
-                        type="text"
-                        x-model="editForm.g2_slug"
-                        placeholder="notion"
-                        class="flex-1 px-3 py-2 text-sm border border-gray-200 rounded-r-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white transition"
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div class="flex items-center justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    @click="cancelEdit()"
-                    class="px-3 py-1.5 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-                  >Cancel</button>
-                  <button
-                    type="submit"
-                    :disabled="saving"
-                    class="inline-flex items-center gap-2 px-4 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-                  >
-                    <span x-text="saving ? 'Saving…' : 'Save Changes'"></span>
-                  </button>
-                </div>
-              </form>
+            <div class="flex items-center gap-2 shrink-0">
+              <button @click="discover(c)" :disabled="busy[c.id]"
+                      class="text-xs px-2 py-1 border border-gray-200 rounded hover:bg-gray-50 disabled:opacity-50"
+                      x-text="busy[c.id] === 'discover' ? 'Running…' : 'Run discovery'"></button>
+              <button @click="toggleOpen(c.id)" class="text-xs text-blue-600 hover:underline"
+                      x-text="open[c.id] ? 'Close' : 'Manage'"></button>
+              <button @click="removeCompany(c)" class="text-xs text-rose-500 hover:underline">Delete</button>
             </div>
-
           </div>
-        </template>
-      </div>
+
+          <div x-show="open[c.id]" x-cloak class="mt-5 space-y-5 border-t border-gray-50 pt-4">
+
+            <!-- ATS override -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Applicant tracking system
+              </h3>
+              <div class="flex flex-wrap gap-2 items-center">
+                <select x-model="c.ats_platform"
+                        class="border border-gray-200 rounded px-2 py-1.5 text-sm">
+                  <option :value="null">not set</option>
+                  <option value="ashby">ashby</option>
+                  <option value="greenhouse">greenhouse</option>
+                  <option value="lever">lever</option>
+                </select>
+                <input x-model="c.ats_slug" placeholder="board slug"
+                       class="border border-gray-200 rounded px-2 py-1.5 text-sm w-52">
+                <button @click="saveCompany(c)"
+                        class="text-xs px-3 py-1.5 bg-gray-900 text-white rounded">Save override</button>
+                <span class="text-xs text-gray-400"
+                      x-text="c.discovery && c.discovery.ats_method ? 'found via ' + c.discovery.ats_method : ''"></span>
+              </div>
+            </div>
+
+            <!-- Optional fetchers -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                Optional fetchers
+              </h3>
+              <div class="flex flex-wrap gap-4">
+                <template x-for="f in optionalFetchers" :key="f">
+                  <label class="flex items-center gap-2 text-sm text-gray-600">
+                    <input type="checkbox" class="rounded"
+                           :checked="(c.enabled_optional_fetchers || []).includes(f)"
+                           @change="toggleFetcher(c, f)">
+                    <span x-text="f"></span>
+                  </label>
+                </template>
+              </div>
+              <div x-show="(c.enabled_optional_fetchers || []).includes('appstore')"
+                   class="mt-3 flex flex-wrap gap-2">
+                <input x-model="c.app_store_url" placeholder="App Store URL"
+                       class="border border-gray-200 rounded px-2 py-1.5 text-sm flex-1 min-w-[220px]">
+                <input x-model="c.play_store_url" placeholder="Play Store URL"
+                       class="border border-gray-200 rounded px-2 py-1.5 text-sm flex-1 min-w-[220px]">
+                <button @click="saveCompany(c)"
+                        class="text-xs px-3 py-1.5 bg-gray-900 text-white rounded">Save</button>
+              </div>
+            </div>
+
+            <!-- People -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">People</h3>
+              <ul class="space-y-1 mb-2">
+                <template x-for="p in peopleFor(c.id)" :key="p.id">
+                  <li class="flex items-center gap-2 text-sm">
+                    <span class="text-gray-800" x-text="p.name"></span>
+                    <span class="text-gray-400 text-xs" x-text="p.role"></span>
+                    <label class="text-xs text-gray-500 flex items-center gap-1 ml-2">
+                      <input type="checkbox" class="rounded" :checked="!!p.track_arxiv"
+                             @change="toggleArxiv(p)"> arxiv
+                    </label>
+                    <button @click="removePerson(c, p)"
+                            class="text-xs text-rose-500 hover:underline ml-auto">remove</button>
+                  </li>
+                </template>
+              </ul>
+              <div class="flex flex-wrap gap-2">
+                <input x-model="newPerson[c.id].name" placeholder="Name"
+                       class="border border-gray-200 rounded px-2 py-1.5 text-sm w-44">
+                <input x-model="newPerson[c.id].role" placeholder="Role"
+                       class="border border-gray-200 rounded px-2 py-1.5 text-sm w-44">
+                <button @click="addPerson(c)"
+                        class="text-xs px-3 py-1.5 border border-gray-200 rounded hover:bg-gray-50">Add person</button>
+              </div>
+            </div>
+
+            <!-- Sources -->
+            <div>
+              <h3 class="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Sources</h3>
+              <ul class="space-y-1 mb-2">
+                <template x-for="s in sourcesFor(c.id)" :key="s.id">
+                  <li class="flex items-center gap-2 text-sm">
+                    <span class="text-gray-500 text-xs w-32 shrink-0" x-text="s.type"></span>
+                    <a :href="s.url" target="_blank"
+                       class="text-blue-600 hover:underline text-xs truncate" x-text="s.url"></a>
+                    <button @click="removeSource(c, s)"
+                            class="text-xs text-rose-500 hover:underline ml-auto">remove</button>
+                  </li>
+                </template>
+                <li x-show="!sourcesFor(c.id).length" class="text-xs text-gray-400">None yet.</li>
+              </ul>
+              <div class="flex flex-wrap gap-2">
+                <select x-model="newSource[c.id].type"
+                        class="border border-gray-200 rounded px-2 py-1.5 text-sm">
+                  <template x-for="t in sourceTypes" :key="t">
+                    <option :value="t" x-text="t"></option>
+                  </template>
+                </select>
+                <input x-model="newSource[c.id].url" placeholder="https://…"
+                       class="border border-gray-200 rounded px-2 py-1.5 text-sm flex-1 min-w-[240px]">
+                <button @click="addSource(c)"
+                        class="text-xs px-3 py-1.5 border border-gray-200 rounded hover:bg-gray-50">Add source</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
     </section>
 
+    <!-- Digest -->
+    <section class="bg-white rounded-xl border border-gray-100 p-6">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Digest</h2>
+      <div class="flex flex-wrap items-center gap-3">
+        <a href="/api/digest/preview" target="_blank"
+           class="text-xs px-3 py-1.5 border border-gray-200 rounded hover:bg-gray-50">Preview</a>
+        <button @click="sendDigest()" :disabled="sending"
+                class="text-xs px-3 py-1.5 bg-gray-900 text-white rounded disabled:opacity-50"
+                x-text="sending ? 'Sending…' : 'Send now'"></button>
+        <span class="text-xs" :class="digestOk ? 'text-emerald-700' : 'text-rose-600'"
+              x-text="digestResult"></span>
+      </div>
+      <p class="text-xs text-gray-400 mt-3">
+        To enable sending, set DIGEST_EMAIL in .env plus either SMTP_USER and
+        SMTP_PASSWORD for Gmail, or RESEND_API_KEY for Resend.
+        Refresh runs Sunday 23:00 New York, the digest goes out Monday 08:00.
+      </p>
+    </section>
   </main>
 
-  <!-- Delete confirmation modal -->
-  <div
-    x-show="deleteTarget"
-    x-cloak
-    x-transition:enter="transition ease-out duration-150"
-    x-transition:enter-start="opacity-0"
-    x-transition:enter-end="opacity-100"
-    class="fixed inset-0 z-40 flex items-center justify-center p-4"
-  >
-    <div class="absolute inset-0 bg-black/40" @click="deleteTarget = null"></div>
-    <div
-      x-transition:enter="transition ease-out duration-150"
-      x-transition:enter-start="opacity-0 scale-95"
-      x-transition:enter-end="opacity-100 scale-100"
-      class="relative bg-white rounded-2xl shadow-xl p-6 w-full max-w-sm z-50"
-    >
-      <h3 class="text-base font-semibold text-gray-900 mb-1">Delete company?</h3>
-      <p class="text-sm text-gray-500 mb-5">
-        <span class="font-medium text-gray-700" x-text="deleteTarget?.name"></span> and all its snapshots will be permanently removed.
-      </p>
-      <div class="flex gap-3 justify-end">
-        <button
-          @click="deleteTarget = null"
-          class="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors"
-        >Cancel</button>
-        <button
-          @click="deleteCompany(deleteTarget.id)"
-          :disabled="deleting"
-          class="px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
-          x-text="deleting ? 'Deleting…' : 'Delete'"
-        ></button>
-      </div>
-    </div>
-  </div>
+<script>
+function settings() {
+  return {
+    companies: [], people: [], sources: [],
+    optionalFetchers: ['reddit', 'appstore', 'g2', 'arxiv'],
+    sourceTypes: ['blog_rss', 'changelog', 'youtube_channel', 'github_org'],
+    open: {}, busy: {}, newPerson: {}, newSource: {},
+    newCompany: { name: '', website: '' },
+    adding: false, addResult: '', addOk: false,
+    sending: false, digestResult: '', digestOk: false,
+    schedulerLine: '',
 
-  <script>
-    function settingsApp() {
-      return {
-        companies: [],
-        loading: true,
+    async init() {
+      await this.load();
+      try {
+        const s = await (await fetch('/api/scheduler')).json();
+        this.schedulerLine = `next refresh ${s.next_refresh} · next digest ${s.next_digest}`;
+      } catch (e) { this.schedulerLine = ''; }
+      if (location.hash.startsWith('#company-')) {
+        const id = location.hash.replace('#company-', '');
+        this.open[id] = true;
+      }
+    },
 
-        // Add form
-        form: { name: '', website_url: '', app_store_url: '', github_org: '', github_repo: '', product_hunt_slug: '', g2_slug: '' },
-        submitting: false,
-        formError: null,
+    async load() {
+      this.companies = await (await fetch('/api/companies')).json();
+      const people = [], sources = [];
+      for (const c of this.companies) {
+        this.newPerson[c.id] = this.newPerson[c.id] || { name: '', role: '' };
+        this.newSource[c.id] = this.newSource[c.id] || { type: 'blog_rss', url: '' };
+        people.push(...await (await fetch(`/api/companies/${c.id}/people`)).json());
+        sources.push(...await (await fetch(`/api/companies/${c.id}/sources`)).json());
+      }
+      this.people = people;
+      this.sources = sources;
+    },
 
-        // Edit state
-        editingId: null,
-        editForm: {},
-        saving: false,
+    peopleFor(id) { return this.people.filter(p => p.company_id === id); },
+    sourcesFor(id) { return this.sources.filter(s => s.company_id === id); },
+    toggleOpen(id) { this.open[id] = !this.open[id]; },
 
-        // Delete state
-        deleteTarget: null,
-        deleting: false,
+    async addCompany() {
+      this.adding = true; this.addResult = '';
+      try {
+        const r = await fetch('/api/companies', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(this.newCompany),
+        });
+        const d = await r.json();
+        const found = d.discovery || {};
+        const missing = (found.not_found || []).join(', ') || 'nothing';
+        this.addOk = true;
+        this.addResult = `Added ${d.company.name}. ATS: ${found.ats_slug
+          ? found.ats_platform + '/' + found.ats_slug : 'not found'}. Not found: ${missing}.`;
+        this.newCompany = { name: '', website: '' };
+        await this.load();
+      } catch (e) {
+        this.addOk = false; this.addResult = e.message;
+      } finally {
+        this.adding = false;
+      }
+    },
 
-        // Toast
-        toast: { visible: false, message: '', type: 'success', _timer: null },
+    async saveCompany(c) {
+      await fetch(`/api/companies/${c.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ats_platform: c.ats_platform || null,
+          ats_slug: c.ats_slug || null,
+          enabled_optional_fetchers: c.enabled_optional_fetchers || [],
+          app_store_url: c.app_store_url || null,
+          play_store_url: c.play_store_url || null,
+        }),
+      });
+    },
 
-        async init() {
-          this.loading = true;
-          try {
-            const res = await fetch('/api/companies');
-            if (!res.ok) throw new Error(`Failed to load companies (${res.status})`);
-            this.companies = await res.json();
-          } catch (e) {
-            this.showToast(e.message, 'error');
-          } finally {
-            this.loading = false;
-          }
-        },
+    async toggleFetcher(c, f) {
+      const list = new Set(c.enabled_optional_fetchers || []);
+      list.has(f) ? list.delete(f) : list.add(f);
+      c.enabled_optional_fetchers = [...list];
+      await this.saveCompany(c);
+    },
 
-        async addCompany() {
-          if (!this.form.name.trim() || !this.form.website_url.trim()) return;
-          this.formError = null;
-          this.submitting = true;
-          try {
-            const res = await fetch('/api/companies', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(this.form),
-            });
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({}));
-              // Surface validation errors from FastAPI (422) or any other failure
-              const detail = err.detail ?? err.message;
-              const msg = Array.isArray(detail)
-                ? detail.map(d => d.msg).join(', ')
-                : detail ?? `Request failed (${res.status})`;
-              this.formError = msg;
-              return;
-            }
-            const newCompany = await res.json();
-            this.companies.push(newCompany);
-            this.resetForm();
-            this.showToast(`"${newCompany.name}" added — first refresh running in background.`);
-          } catch (e) {
-            this.formError = e.message;
-          } finally {
-            this.submitting = false;
-          }
-        },
+    async discover(c) {
+      this.busy[c.id] = 'discover';
+      try {
+        await fetch(`/api/companies/${c.id}/discover?overwrite=true`, { method: 'POST' });
+        await this.load();
+      } finally {
+        delete this.busy[c.id];
+      }
+    },
 
-        startEdit(company) {
-          this.editingId = company.id;
-          this.editForm = {
-            name:              company.name              ?? '',
-            website_url:       company.website_url       ?? '',
-            app_store_url:     company.app_store_url     ?? '',
-            github_org:        company.github_org        ?? '',
-            github_repo:       company.github_repo       ?? '',
-            product_hunt_slug: company.product_hunt_slug ?? '',
-            g2_slug:           company.g2_slug           ?? '',
-          };
-        },
+    async removeCompany(c) {
+      if (!confirm(`Delete ${c.name} and all its history?`)) return;
+      await fetch(`/api/companies/${c.id}`, { method: 'DELETE' });
+      await this.load();
+    },
 
-        cancelEdit() {
-          this.editingId = null;
-          this.editForm = {};
-        },
+    async addPerson(c) {
+      const p = this.newPerson[c.id];
+      if (!p.name) return;
+      await fetch(`/api/companies/${c.id}/people`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: p.name, role: p.role, track_arxiv: false }),
+      });
+      this.newPerson[c.id] = { name: '', role: '' };
+      await this.load();
+    },
 
-        async saveEdit(id) {
-          if (!this.editForm.name.trim()) return;
-          this.saving = true;
-          try {
-            const res = await fetch(`/api/companies/${id}`, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(this.editForm),
-            });
-            if (!res.ok) {
-              const err = await res.json().catch(() => ({}));
-              throw new Error(err.message ?? `Failed to save (${res.status})`);
-            }
-            const updated = await res.json();
-            const idx = this.companies.findIndex(c => c.id === id);
-            if (idx !== -1) this.companies[idx] = updated;
-            this.editingId = null;
-            this.showToast('Changes saved.');
-          } catch (e) {
-            this.showToast(e.message, 'error');
-          } finally {
-            this.saving = false;
-          }
-        },
+    async toggleArxiv(p) {
+      await fetch(`/api/people/${p.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ track_arxiv: !p.track_arxiv }),
+      });
+      await this.load();
+    },
 
-        confirmDelete(company) {
-          this.deleteTarget = company;
-        },
+    async removePerson(c, p) {
+      await fetch(`/api/people/${p.id}`, { method: 'DELETE' });
+      await this.load();
+    },
 
-        async deleteCompany(id) {
-          this.deleting = true;
-          const name = this.deleteTarget?.name ?? 'Company';
-          try {
-            const res = await fetch(`/api/companies/${id}`, { method: 'DELETE' });
-            if (!res.ok) throw new Error(`Delete failed (${res.status})`);
-            this.companies = this.companies.filter(c => c.id !== id);
-            this.deleteTarget = null;
-            this.showToast(`"${name}" deleted.`);
-          } catch (e) {
-            this.showToast(e.message, 'error');
-          } finally {
-            this.deleting = false;
-          }
-        },
+    async addSource(c) {
+      const s = this.newSource[c.id];
+      if (!s.url) return;
+      await fetch(`/api/companies/${c.id}/sources`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(s),
+      });
+      this.newSource[c.id] = { type: 'blog_rss', url: '' };
+      await this.load();
+    },
 
-        resetForm() {
-          this.form = { name: '', website_url: '', app_store_url: '', github_org: '', github_repo: '', product_hunt_slug: '', g2_slug: '' };
-          this.formError = null;
-        },
+    async removeSource(c, s) {
+      await fetch(`/api/sources/${s.id}`, { method: 'DELETE' });
+      await this.load();
+    },
 
-        showToast(message, type = 'success') {
-          if (this.toast._timer) clearTimeout(this.toast._timer);
-          this.toast.message = message;
-          this.toast.type    = type;
-          this.toast.visible = true;
-          this.toast._timer  = setTimeout(() => { this.toast.visible = false; }, 3500);
-        },
-      };
-    }
-  </script>
+    async sendDigest() {
+      this.sending = true; this.digestResult = '';
+      try {
+        const r = await fetch('/api/digest/send', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({}),
+        });
+        const d = await r.json();
+        this.digestOk = d.status === 'sent';
+        this.digestResult = d.status === 'sent'
+          ? `Sent to ${d.to}` : `${d.status}: ${d.detail || ''}`;
+      } catch (e) {
+        this.digestOk = false; this.digestResult = e.message;
+      } finally {
+        this.sending = false;
+      }
+    },
+  };
+}
+</script>
 </body>
 </html>

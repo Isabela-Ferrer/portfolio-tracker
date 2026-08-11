@@ -3,733 +3,323 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Company Detail — Portfolio Momentum Tracker</title>
+  <title>Company brief</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked@12.0.0/marked.min.js"></script>
   <style>
     [x-cloak] { display: none !important; }
-    .signal-items { max-height: 0; overflow: hidden; transition: max-height 0.3s ease; }
-    .signal-items.open { max-height: 600px; }
+    .brief h1 { font-size: 1.5rem; font-weight: 600; margin-bottom: .75rem; }
+    .brief h2 { font-size: .8rem; font-weight: 600; text-transform: uppercase;
+                letter-spacing: .06em; color: #6b7280; margin: 1.25rem 0 .4rem; }
+    .brief p  { margin: .4rem 0; color: #374151; }
+    .brief ul { list-style: disc; padding-left: 1.2rem; margin: .4rem 0; color: #374151; }
+    .brief li { margin: .2rem 0; }
+    .brief a  { color: #1d4ed8; text-decoration: underline; }
   </style>
 </head>
-<body class="bg-gray-50 min-h-screen" x-data="companyApp()" x-init="init()">
+<body class="bg-gray-50 min-h-screen" x-data="companyPage()" x-init="init()">
 
-  <!-- Header -->
   <header class="bg-white border-b border-gray-200 sticky top-0 z-10">
-    <div class="max-w-5xl mx-auto px-6 py-4 flex items-center gap-4">
-      <a href="/" class="text-gray-400 hover:text-gray-700 transition-colors">
-        <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-        </svg>
-      </a>
-      <!-- Company logo -->
-      <template x-if="company">
-        <div class="w-9 h-9 shrink-0 rounded-xl overflow-hidden relative"
-          :style="'background:' + letterBgColor(company.name)">
-          <span class="absolute inset-0 flex items-center justify-center text-sm font-bold text-white select-none"
-            x-text="company.name[0]?.toUpperCase()"></span>
-          <img
-            :src="logoUrl(company.website_url)"
-            class="absolute inset-0 w-full h-full object-contain bg-white p-0.5 rounded-xl"
-            @error="onLogoError($event, company.website_url)"
-            loading="lazy"
-          />
-        </div>
-      </template>
-      <div class="flex-1 min-w-0">
-        <h1 class="text-xl font-semibold text-gray-900 tracking-tight truncate" x-text="company?.name ?? 'Loading…'"></h1>
-        <p class="text-xs text-gray-400 mt-0.5" x-show="company?.website_url" x-text="company?.website_url"></p>
+    <div class="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <a href="/" class="text-gray-400 hover:text-gray-600 text-sm">&larr; All companies</a>
+        <h1 class="text-xl font-semibold text-gray-900" x-text="company.name || 'Loading'"></h1>
+        <a :href="company.website" target="_blank" x-show="company.website"
+           class="text-xs text-blue-600 hover:underline" x-text="company.website"></a>
       </div>
-      <button
-        @click="refresh()"
-        :disabled="refreshing"
-        class="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-      >
-        <svg :class="refreshing ? 'animate-spin' : ''" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-        <span x-text="refreshing ? 'Refreshing…' : 'Refresh'"></span>
-      </button>
+      <div class="flex items-center gap-3">
+        <a :href="'/settings.html#company-' + companyId"
+           class="text-sm text-gray-500 hover:text-gray-700">Edit</a>
+        <button @click="refresh()" :disabled="refreshing"
+          class="px-4 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 disabled:opacity-50"
+          x-text="refreshing ? 'Refreshing…' : 'Refresh'"></button>
+      </div>
     </div>
   </header>
 
-  <main class="max-w-5xl mx-auto px-6 py-8 space-y-8">
+  <main class="max-w-6xl mx-auto px-6 py-8 space-y-6" x-show="!loading" x-cloak>
 
-    <!-- Loading skeleton -->
-    <div x-show="loading" x-cloak class="space-y-6 animate-pulse">
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-        <div class="flex items-start gap-4">
-          <div class="flex-1 space-y-3">
-            <div class="h-5 bg-gray-200 rounded w-48"></div>
-            <div class="h-3 bg-gray-100 rounded w-full"></div>
-            <div class="h-3 bg-gray-100 rounded w-5/6"></div>
-          </div>
-          <div class="w-20 h-20 bg-gray-200 rounded-xl"></div>
+    <!-- Flags + this week -->
+    <section class="bg-white rounded-xl border border-gray-100 p-5">
+      <div class="flex flex-wrap gap-2 mb-3">
+        <template x-for="f in activeFlags" :key="f">
+          <span class="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-gray-100 text-xs text-gray-700">
+            <span x-text="flagIcons[f]"></span><span x-text="flagLabels[f]"></span>
+          </span>
+        </template>
+        <span x-show="!activeFlags.length" class="text-xs text-gray-400">No flags this week</span>
+      </div>
+      <ul class="space-y-1">
+        <template x-for="(b, i) in bullets" :key="i">
+          <li class="text-gray-700 text-sm" x-text="'• ' + b"></li>
+        </template>
+      </ul>
+      <div class="mt-4 flex gap-6 text-sm text-gray-500 border-t border-gray-50 pt-3">
+        <span><span class="text-gray-900 font-medium" x-text="headcount.total"></span> open roles</span>
+        <span><span class="text-gray-900 font-medium" x-text="headcount.nyc"></span> in New York</span>
+        <span><span class="text-gray-900 font-medium" x-text="earlyCareer.length"></span> early career</span>
+        <span class="ml-auto text-xs text-gray-400" x-text="'Last refresh ' + fmtDate(snapshot.created_at)"></span>
+      </div>
+      <div x-show="Object.keys(errors).length" class="mt-3 text-xs text-amber-700 bg-amber-50 rounded p-2">
+        <template x-for="(msg, name) in errors" :key="name">
+          <div><span class="font-medium" x-text="name"></span>: <span x-text="msg"></span></div>
+        </template>
+      </div>
+    </section>
+
+    <!-- Brief -->
+    <section class="bg-white rounded-xl border border-gray-100 p-6">
+      <div class="flex items-center justify-between mb-2">
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Brief</h2>
+        <div class="flex items-center gap-3">
+          <span class="text-xs text-gray-400" x-show="brief.updated_at"
+                x-text="'Updated ' + fmtDate(brief.updated_at)"></span>
+          <button @click="toggleEdit()" class="text-xs text-blue-600 hover:underline"
+                  x-text="editing ? 'Cancel' : 'Edit'"></button>
+          <button x-show="editing" @click="saveBrief()"
+                  class="text-xs px-2 py-1 bg-gray-900 text-white rounded">Save</button>
         </div>
       </div>
-      <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6 h-64"></div>
-    </div>
+      <div x-show="!editing" class="brief" x-html="briefHtml"></div>
+      <textarea x-show="editing" x-model="briefDraft" rows="24"
+                class="w-full border border-gray-200 rounded-lg p-3 font-mono text-xs"></textarea>
+    </section>
 
-    <!-- Error state -->
-    <div x-show="error && !loading" x-cloak class="bg-red-50 border border-red-200 rounded-xl p-6 text-center">
-      <p class="text-red-700 text-sm font-medium" x-text="error"></p>
-      <button @click="init()" class="mt-3 text-sm text-red-600 underline">Try again</button>
-    </div>
-
-    <!-- Refresh error (non-fatal) -->
-    <div x-show="refreshError && !loading" x-cloak class="bg-yellow-50 border border-yellow-200 rounded-xl px-4 py-3 text-sm text-yellow-800">
-      Refresh error: <span x-text="refreshError"></span>
-    </div>
-
-    <!-- Content -->
-    <template x-if="!loading && !error && company">
-      <div class="space-y-8">
-
-        <!-- Hero card: score + AI blurb -->
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <div class="flex items-start gap-6">
-            <div class="flex-1 min-w-0">
-              <p class="text-xs text-gray-400 mb-2" x-show="latestSnapshot?.fetched_at">
-                Last refreshed <span x-text="timeAgo(latestSnapshot?.fetched_at)"></span>
-              </p>
-              <!-- AI highlights: 3 VC-relevant signal bullets -->
-              <template x-if="aiHighlights().length">
-                <ul class="space-y-2 mb-3">
-                  <template x-for="(h, i) in aiHighlights()" :key="i">
-                    <li class="text-sm text-gray-700 leading-snug flex gap-2">
-                      <span class="text-indigo-400 font-bold shrink-0 select-none mt-0.5">·</span>
-                      <span x-text="h"></span>
-                    </li>
-                  </template>
-                </ul>
-              </template>
-              <!-- Fallback prose blurb for older snapshots without highlights -->
-              <p
-                x-show="!aiHighlights().length && latestSnapshot?.ai_blurb"
-                class="text-gray-600 text-sm leading-relaxed mb-3"
-                x-text="latestSnapshot?.ai_blurb"
-              ></p>
-              <p
-                x-show="!aiHighlights().length && !latestSnapshot?.ai_blurb"
-                class="text-gray-300 text-sm italic mb-3"
-              >No summary yet — run a refresh to generate one.</p>
-
-              <!-- 3-month comparison pill strip -->
-              <template x-if="trends?.three_month">
-                <div class="mt-4 pt-4 border-t border-gray-50">
-                  <p class="text-[10px] font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                    vs 3 months ago
-                    (<span x-text="formatDateShort(trends.three_month.prev_date)"></span>)
-                  </p>
-                  <div class="flex flex-wrap gap-1.5">
-                    <template x-if="trends.three_month.momentum_score?.delta !== 0">
-                      <span class="text-xs px-2 py-0.5 rounded-full font-medium"
-                        :class="trends.three_month.momentum_score.direction === 'up' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'"
-                        x-text="'Score ' + (trends.three_month.momentum_score.delta > 0 ? '+' : '') + trends.three_month.momentum_score.delta + ' pts'"
-                      ></span>
-                    </template>
-                    <template x-if="trends.three_month.jobs?.delta !== 0">
-                      <span class="text-xs px-2 py-0.5 rounded-full font-medium"
-                        :class="trends.three_month.jobs.direction === 'up' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'"
-                        x-text="'Jobs ' + (trends.three_month.jobs.delta > 0 ? '+' : '') + trends.three_month.jobs.delta"
-                      ></span>
-                    </template>
-                    <template x-if="trends.three_month.press?.delta !== 0">
-                      <span class="text-xs px-2 py-0.5 rounded-full font-medium"
-                        :class="trends.three_month.press.direction === 'up' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'"
-                        x-text="'Press ' + (trends.three_month.press.delta > 0 ? '+' : '') + trends.three_month.press.delta"
-                      ></span>
-                    </template>
-                    <template x-if="trends.three_month.appstore_rating?.delta !== 0">
-                      <span class="text-xs px-2 py-0.5 rounded-full font-medium"
-                        :class="trends.three_month.appstore_rating.direction === 'up' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'"
-                        x-text="'Rating ' + (trends.three_month.appstore_rating.delta > 0 ? '+' : '') + trends.three_month.appstore_rating.delta + '★'"
-                      ></span>
-                    </template>
-                    <template x-if="trends.three_month.launches?.delta !== 0">
-                      <span class="text-xs px-2 py-0.5 rounded-full font-medium"
-                        :class="trends.three_month.launches.direction === 'up' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'"
-                        x-text="'Launches ' + (trends.three_month.launches.delta > 0 ? '+' : '') + trends.three_month.launches.delta"
-                      ></span>
-                    </template>
-                  </div>
-                </div>
-              </template>
-            </div>
-
-            <!-- Score badge + vs-last-month delta -->
-            <div class="flex-shrink-0 text-center">
-              <div
-                class="w-20 h-20 rounded-xl flex items-center justify-center text-3xl font-bold"
-                :class="scoreClass(latestSnapshot?.momentum_score)"
-                x-text="latestSnapshot?.momentum_score != null ? Math.round(latestSnapshot.momentum_score) : '–'"
-              ></div>
-              <p class="text-xs text-gray-400 mt-1.5">Momentum</p>
-              <template x-if="trends?.momentum_score && trends.momentum_score.direction !== 'flat'">
-                <div class="mt-1.5">
-                  <span
-                    class="inline-flex items-center gap-0.5 text-xs font-semibold px-2 py-0.5 rounded-full"
-                    :class="trends.momentum_score.direction === 'up' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-600'"
-                    x-text="(trends.momentum_score.delta > 0 ? '↑ +' : '↓ ') + Math.abs(trends.momentum_score.delta) + ' pts'"
-                  ></span>
-                  <p class="text-[10px] text-gray-400 mt-0.5" x-text="'vs ' + formatDateShort(trends.prev_date)"></p>
-                </div>
-              </template>
-            </div>
-          </div>
-        </div>
-
-        <!-- Momentum chart -->
-        <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-          <h2 class="text-sm font-semibold text-gray-700 mb-4">Momentum Over Time</h2>
-          <div x-show="snapshots.length > 1" class="relative h-52">
-            <canvas id="momentumChart"></canvas>
-          </div>
-          <div x-show="snapshots.length <= 1" class="h-52 flex items-center justify-center">
-            <p class="text-sm text-gray-300">Need at least 2 snapshots to show a trend.</p>
-          </div>
-        </div>
-
-        <!-- Signals -->
-        <div>
-          <h2 class="text-sm font-semibold text-gray-700 mb-3">Signals</h2>
-
-          <template x-if="latestSnapshot && signals.length > 0">
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-              <template x-for="sig in signals" :key="sig.key">
-                <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
-                  <div class="p-4">
-                    <!-- Header row -->
-                    <div class="flex items-start justify-between gap-2 mb-1">
-                      <div class="flex items-center gap-2">
-                        <span class="text-lg" x-text="sig.icon"></span>
-                        <div>
-                          <p class="text-xs font-semibold text-gray-700 leading-tight" x-text="sig.label"></p>
-                          <p class="text-xs text-gray-400 mt-0.5" x-text="sig.summary"></p>
-                          <!-- Trend badge vs last month -->
-                          <template x-if="sig.trend && sig.trend.direction !== 'flat'">
-                            <p class="text-[10px] font-semibold mt-0.5 leading-none"
-                               :class="sig.trend.direction === 'up' ? 'text-green-600' : 'text-red-500'"
-                               x-text="(sig.trend.delta > 0 ? '↑ +' : '↓ ') + Math.abs(sig.trend.delta) + ' ' + sig.trend.suffix + ' vs last month'"
-                            ></p>
-                          </template>
-                        </div>
-                      </div>
-                      <!-- Score chip from breakdown -->
-                      <div x-show="sig.score != null" class="flex-shrink-0 text-right">
-                        <span
-                          class="text-xs font-bold px-2 py-0.5 rounded-md"
-                          :class="sig.score >= 70 ? 'bg-green-100 text-green-700' : sig.score >= 40 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-600'"
-                          x-text="Math.round(sig.score)"
-                        ></span>
-                      </div>
-                    </div>
-
-                    <!-- Expandable items -->
-                    <template x-if="sig.items && sig.items.length > 0">
-                      <div>
-                        <button
-                          @click="sig._open = !sig._open"
-                          class="mt-2 text-xs text-gray-400 hover:text-gray-600 flex items-center gap-1 transition-colors"
-                        >
-                          <svg
-                            class="w-3 h-3 transition-transform"
-                            :class="sig._open ? 'rotate-90' : ''"
-                            fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                          >
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-                          </svg>
-                          <span x-text="sig._open ? 'Hide' : sig.items.length + ' items'"></span>
-                        </button>
-                        <div :class="sig._open ? 'open' : ''" class="signal-items">
-                          <ul class="mt-2 space-y-2">
-                            <template x-for="(item, idx) in sig.items.slice(0, 8)" :key="idx">
-                              <li class="text-xs text-gray-500 leading-snug border-t border-gray-50 pt-2 space-y-1">
-
-                                <!-- Funding: round type + amount badge row -->
-                                <template x-if="item.round_type || item.badge">
-                                  <div class="flex flex-wrap items-center gap-1 mb-0.5">
-                                    <template x-if="item.round_type">
-                                      <span class="bg-blue-50 text-blue-700 font-semibold rounded px-1.5 py-0.5 text-[10px]" x-text="item.round_type"></span>
-                                    </template>
-                                    <template x-if="item.badge">
-                                      <span class="bg-green-50 text-green-700 font-semibold rounded px-1.5 py-0.5 font-mono text-[10px]" x-text="item.badge"></span>
-                                    </template>
-                                  </div>
-                                </template>
-
-                                <!-- Funding: AI summary sentence -->
-                                <template x-if="item.summary">
-                                  <p class="text-gray-600 leading-snug" x-text="item.summary"></p>
-                                </template>
-
-                                <!-- Funding: investor list -->
-                                <template x-if="item.investors && item.investors.length > 0">
-                                  <p class="text-gray-400">
-                                    <span class="font-medium text-gray-500">Investors: </span>
-                                    <span x-text="item.investors.join(', ')"></span>
-                                  </p>
-                                </template>
-
-                                <!-- Title / link (shown as source link for funding, main link for press) -->
-                                <template x-if="item.url">
-                                  <a :href="item.url" target="_blank" rel="noopener"
-                                     class="font-medium text-gray-700 hover:text-blue-600 hover:underline"
-                                     x-text="item.title || item.url"></a>
-                                </template>
-                                <template x-if="!item.url">
-                                  <span class="font-medium text-gray-700" x-text="item.title"></span>
-                                </template>
-
-                                <!-- Stars (app reviews) -->
-                                <template x-if="item.stars != null">
-                                  <span class="ml-1 text-yellow-500" x-text="'★'.repeat(Math.round(item.stars)) + '☆'.repeat(5 - Math.round(item.stars))"></span>
-                                </template>
-
-                                <!-- Subtitle / meta -->
-                                <template x-if="item.subtitle">
-                                  <span class="block text-gray-400 mt-0.5" x-text="item.subtitle"></span>
-                                </template>
-
-                                <!-- Press: key points as bullet list -->
-                                <template x-if="item.key_points && item.key_points.length > 0">
-                                  <ul class="mt-1 space-y-0.5 pl-3">
-                                    <template x-for="(pt, pi) in item.key_points" :key="pi">
-                                      <li class="text-gray-500 leading-snug list-disc" x-text="pt"></li>
-                                    </template>
-                                  </ul>
-                                </template>
-
-                              </li>
-                            </template>
-                          </ul>
-                        </div>
-                      </div>
-                    </template>
-
-                    <!-- No items placeholder -->
-                    <template x-if="!sig.items || sig.items.length === 0">
-                      <p class="mt-2 text-xs text-gray-300 italic">No data found</p>
-                    </template>
-                  </div>
-
-                  <!-- Per-signal sparkline (shows if 2+ history points exist) -->
-                  <template x-if="signalHistory.length > 1">
-                    <div class="px-4 pb-3 pt-1 border-t border-gray-50">
-                      <canvas :id="`sig-spark-${sig.key}`" style="width:100%;height:24px;display:block;"></canvas>
-                    </div>
-                  </template>
-                </div>
-              </template>
-            </div>
-          </template>
-
-          <!-- No snapshot fallback -->
-          <template x-if="!latestSnapshot || signals.length === 0">
-            <div class="bg-white rounded-xl border border-gray-100 shadow-sm p-8 text-center">
-              <p class="text-sm text-gray-300">No signals yet.</p>
-              <button @click="refresh()" class="mt-2 text-sm text-blue-500 hover:underline">Run refresh to collect signals</button>
-            </div>
-          </template>
-        </div>
-
-        <!-- Snapshot history table -->
-        <div>
-          <h2 class="text-sm font-semibold text-gray-700 mb-3">Snapshot History</h2>
-          <div class="bg-white rounded-xl border border-gray-100 shadow-sm overflow-x-auto">
-            <table class="w-full text-sm">
-              <thead>
-                <tr class="border-b border-gray-100">
-                  <th class="text-left text-xs font-medium text-gray-400 px-5 py-3 whitespace-nowrap">Date</th>
-                  <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">Score</th>
-                  <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">📰 Press</th>
-                  <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">💼 Jobs</th>
-                  <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">📱 App</th>
-                  <th class="text-right text-xs font-medium text-gray-400 px-3 py-3">🚀 Launches</th>
-                  <th class="text-right text-xs font-medium text-gray-400 px-3 py-3 whitespace-nowrap">💰 Funding</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template x-for="(snap, idx) in snapshots" :key="snap.id ?? idx">
-                  <tr class="border-b border-gray-50 last:border-0 hover:bg-gray-50 transition-colors">
-                    <td class="px-5 py-3 text-gray-600 whitespace-nowrap" x-text="formatDate(snap.fetched_at)"></td>
-                    <td class="px-3 py-3 text-right">
-                      <div class="inline-flex flex-col items-end gap-0.5">
-                        <span
-                          class="inline-block font-semibold text-sm px-2 py-0.5 rounded-md"
-                          :class="scoreClass(snap.momentum_score)"
-                          x-text="snap.momentum_score != null ? Math.round(snap.momentum_score) : '–'"
-                        ></span>
-                        <!-- Delta vs the snapshot below it (next oldest) -->
-                        <template x-if="idx < snapshots.length - 1 && snap.momentum_score != null && snapshots[idx+1].momentum_score != null">
-                          <span
-                            class="text-[10px] font-semibold leading-none"
-                            :class="(snap.momentum_score - snapshots[idx+1].momentum_score) > 0 ? 'text-green-500' : (snap.momentum_score - snapshots[idx+1].momentum_score) < 0 ? 'text-red-400' : 'text-gray-300'"
-                            x-text="((snap.momentum_score - snapshots[idx+1].momentum_score) > 0 ? '+' : '') + Math.round(snap.momentum_score - snapshots[idx+1].momentum_score)"
-                          ></span>
-                        </template>
-                      </div>
-                    </td>
-                    <td class="px-3 py-3 text-right text-xs text-gray-500" x-text="parseBreakdown(snap).press ?? '–'"></td>
-                    <td class="px-3 py-3 text-right text-xs text-gray-500" x-text="parseBreakdown(snap).jobs ?? '–'"></td>
-                    <td class="px-3 py-3 text-right text-xs text-gray-500" x-text="parseBreakdown(snap).appstore ?? '–'"></td>
-                    <td class="px-3 py-3 text-right text-xs text-gray-500" x-text="parseBreakdown(snap).launches ?? '–'"></td>
-                    <td class="px-3 py-3 text-right text-xs text-gray-500" x-text="parseBreakdown(snap).funding ?? '–'"></td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-            <div x-show="snapshots.length === 0" class="px-5 py-8 text-center text-sm text-gray-300">
-              No snapshots recorded yet.
-            </div>
-          </div>
-        </div>
-
+    <!-- Signal feed grouped by type -->
+    <section class="bg-white rounded-xl border border-gray-100 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Signals</h2>
+        <label class="text-xs text-gray-500 flex items-center gap-2">
+          <input type="checkbox" x-model="weekOnly" class="rounded">
+          This week only
+        </label>
       </div>
-    </template>
+      <div x-show="!groupedSignals().length" class="text-sm text-gray-400">No signals yet.</div>
+      <div class="space-y-5">
+        <template x-for="group in groupedSignals()" :key="group.type">
+          <div>
+            <h3 class="text-xs font-medium text-gray-400 uppercase tracking-wide mb-2">
+              <span x-text="typeLabel(group.type)"></span>
+              <span class="text-gray-300" x-text="'(' + group.items.length + ')'"></span>
+            </h3>
+            <ul class="space-y-1.5">
+              <template x-for="s in group.items.slice(0, 12)" :key="s.id">
+                <li class="text-sm flex gap-2">
+                  <span class="text-xs text-gray-400 w-20 shrink-0 pt-0.5"
+                        x-text="(s.published_at || '').slice(0,10)"></span>
+                  <a :href="s.url" target="_blank"
+                     class="text-gray-700 hover:text-blue-700 hover:underline" x-text="s.title"></a>
+                </li>
+              </template>
+            </ul>
+          </div>
+        </template>
+      </div>
+    </section>
 
+    <!-- Jobs -->
+    <section class="bg-white rounded-xl border border-gray-100 p-6">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide">Open roles</h2>
+        <input x-model="jobFilter" placeholder="Filter roles"
+               class="text-xs border border-gray-200 rounded px-2 py-1 w-48">
+      </div>
+      <div x-show="!filteredJobs().length" class="text-sm text-gray-400">No open roles on record.</div>
+      <table class="w-full text-sm" x-show="filteredJobs().length">
+        <thead>
+          <tr class="border-b border-gray-100 text-xs text-gray-400">
+            <th class="text-left py-2">Title</th>
+            <th class="text-left py-2">Location</th>
+            <th class="text-left py-2">Team</th>
+            <th class="text-right py-2">First seen</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="j in filteredJobs()" :key="j.id">
+            <tr class="border-b border-gray-50"
+                :class="j.is_early_career ? 'bg-amber-50' : (j.is_nyc ? 'bg-blue-50/40' : '')">
+              <td class="py-2">
+                <a :href="j.url" target="_blank" class="text-gray-800 hover:underline" x-text="j.title"></a>
+                <span x-show="j.is_early_career"
+                      class="ml-2 px-1.5 py-0.5 rounded bg-amber-200 text-amber-900 text-[10px] font-medium">early career</span>
+              </td>
+              <td class="py-2 text-gray-500">
+                <span x-text="j.location"></span>
+                <span x-show="j.is_nyc" class="ml-1 text-blue-600 text-[10px] font-medium">NYC</span>
+              </td>
+              <td class="py-2 text-gray-500" x-text="j.department"></td>
+              <td class="py-2 text-right text-xs text-gray-400" x-text="(j.first_seen_at||'').slice(0,10)"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- People + sources -->
+    <section class="grid md:grid-cols-2 gap-6">
+      <div class="bg-white rounded-xl border border-gray-100 p-6">
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">People tracked</h2>
+        <ul class="space-y-1 text-sm">
+          <template x-for="p in people" :key="p.id">
+            <li class="text-gray-700">
+              <span x-text="p.name"></span>
+              <span class="text-gray-400 text-xs" x-text="p.role ? ' · ' + p.role : ''"></span>
+              <span x-show="p.track_arxiv" class="text-[10px] text-purple-600 ml-1">arxiv</span>
+            </li>
+          </template>
+        </ul>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-100 p-6">
+        <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Sources</h2>
+        <ul class="space-y-1 text-sm">
+          <li class="text-gray-700">
+            ATS:
+            <span class="text-gray-500" x-text="company.ats_platform ? company.ats_platform + ' / ' + company.ats_slug : 'not found'"></span>
+          </li>
+          <template x-for="s in sources" :key="s.id">
+            <li class="text-gray-700 truncate">
+              <span x-text="s.type"></span>:
+              <a :href="s.url" target="_blank" class="text-blue-600 hover:underline text-xs" x-text="s.url"></a>
+            </li>
+          </template>
+        </ul>
+      </div>
+    </section>
+
+    <!-- History -->
+    <section class="bg-white rounded-xl border border-gray-100 p-6">
+      <h2 class="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Headcount history</h2>
+      <div x-show="history.length < 2" class="text-sm text-gray-400">
+        Needs a second snapshot before a trend exists.
+      </div>
+      <table class="w-full text-sm" x-show="history.length >= 2">
+        <thead>
+          <tr class="text-xs text-gray-400 border-b border-gray-100">
+            <th class="text-left py-2">Date</th>
+            <th class="text-right py-2">Open roles</th>
+            <th class="text-right py-2">New York</th>
+          </tr>
+        </thead>
+        <tbody>
+          <template x-for="h in [...history].reverse()" :key="h.date">
+            <tr class="border-b border-gray-50">
+              <td class="py-1.5 text-gray-600" x-text="h.date"></td>
+              <td class="py-1.5 text-right text-gray-800" x-text="h.total"></td>
+              <td class="py-1.5 text-right text-gray-500" x-text="h.nyc"></td>
+            </tr>
+          </template>
+        </tbody>
+      </table>
+    </section>
   </main>
 
-  <script>
-    function companyApp() {
-      return {
-        companyId: null,
-        company: null,
-        snapshots: [],
-        latestSnapshot: null,
-        signals: [],
-        trends: null,
-        signalHistory: [],
-        signalCharts: {},
-        loading: true,
-        refreshing: false,
-        error: null,
-        refreshError: null,
-        chart: null,
+<script>
+const TYPE_ORDER = ['podcast','youtube','arxiv','launch','changelog','blog','press',
+                    'funding','job_new','job_closed','reddit'];
+const TYPE_LABELS = {
+  podcast: 'Podcasts', youtube: 'Video', arxiv: 'Papers', launch: 'Launches',
+  changelog: 'Changelog', blog: 'Blog posts', press: 'Press', funding: 'Funding',
+  job_new: 'Roles opened', job_closed: 'Roles closed', reddit: 'Reddit',
+};
 
-        async init() {
-          const params = new URLSearchParams(window.location.search);
-          this.companyId = params.get('id');
-          if (!this.companyId) {
-            this.error = 'No company ID provided.';
-            this.loading = false;
-            return;
-          }
-          this.loading = true;
-          this.error = null;
-          try {
-            const [companyRes, snapshotsRes, historyRes] = await Promise.all([
-              fetch(`/api/companies/${this.companyId}`),
-              fetch(`/api/companies/${this.companyId}/snapshots?limit=20`),
-              fetch(`/api/companies/${this.companyId}/signal-history?limit=12`),
-            ]);
-            if (!companyRes.ok) throw new Error(`Company not found (${companyRes.status})`);
-            this.company = await companyRes.json();
-            const rawSnaps = snapshotsRes.ok ? await snapshotsRes.json() : [];
-            // Sort newest first
-            this.snapshots = rawSnaps.sort((a, b) => new Date(b.fetched_at) - new Date(a.fetched_at));
-            this.latestSnapshot = this.snapshots[0] ?? null;
-            this.trends = this.latestSnapshot?.signal_trends ?? null;
-            // Signal history oldest→newest for sparkline charting
-            const rawHistory = historyRes.ok ? await historyRes.json() : [];
-            this.signalHistory = [...rawHistory].reverse();
-            this.signals = this.latestSnapshot ? this.buildSignals(this.latestSnapshot) : [];
-          } catch (e) {
-            this.error = e.message;
-          } finally {
-            this.loading = false;
-            this.$nextTick(() => { this.drawChart(); this.drawSignalSparklines(); });
-          }
-        },
+function companyPage() {
+  return {
+    companyId: new URLSearchParams(location.search).get('id'),
+    company: {}, people: [], sources: [], jobs: [], signals: [], weekSignals: [],
+    snapshot: {}, brief: {}, history: [], activeFlags: [], bullets: [],
+    flagLabels: {}, flagIcons: {}, errors: {}, headcount: { total: 0, nyc: 0 },
+    loading: true, refreshing: false, weekOnly: false, jobFilter: '',
+    editing: false, briefDraft: '', briefHtml: '',
 
-        async refresh() {
-          this.refreshing = true;
-          this.refreshError = null;
-          try {
-            const res = await fetch(`/api/companies/${this.companyId}/refresh`, { method: 'POST' });
-            if (!res.ok) {
-              const body = await res.json().catch(() => ({}));
-              throw new Error(body.detail ?? `Refresh failed (${res.status})`);
-            }
-          } catch (e) {
-            this.refreshError = e.message;
-          }
-          if (this.chart) { this.chart.destroy(); this.chart = null; }
-          Object.values(this.signalCharts).forEach(c => c.destroy());
-          this.signalCharts = {};
-          await this.init();
-          this.refreshing = false;
-        },
-
-        // Build the 5 signal cards from raw snapshot JSON columns
-        buildSignals(snap) {
-          const bd = this.parseJson(snap.score_breakdown) ?? {};
-          const t  = this.trends; // shorthand
-
-          const press    = this.parseJson(snap.press_data)              ?? [];
-          const jobs     = this.parseJson(snap.jobs_data)               ?? {};
-          const app      = this.parseJson(snap.appstore_data)           ?? [];
-          const launches = this.parseJson(snap.product_launches_data)   ?? [];
-          const funding  = this.parseJson(snap.funding_data)            ?? [];
-          const social   = this.parseJson(snap.social_data)             ?? [];
-
-          // Helper: pull delta info for a signal's trend badge
-          const mkTrend = (trendObj, suffix) =>
-            trendObj ? { delta: trendObj.delta, direction: trendObj.direction, suffix } : null;
-
-          return [
-            {
-              key: 'press', icon: '📰', label: 'Press',
-              summary: press.length ? `${press.length} article${press.length !== 1 ? 's' : ''}` : 'No articles found',
-              score: bd.press ?? null,
-              trend: mkTrend(t?.press, 'articles'),
-              _open: false,
-              items: press.map(a => ({
-                title:      a.title,
-                url:        a.url,
-                subtitle:   [a.source, a.published_at ? a.published_at.slice(0,10) : null].filter(Boolean).join(' · '),
-                key_points: a.key_points ?? [],
-              })),
-            },
-            {
-              key: 'jobs', icon: '💼', label: 'Jobs',
-              summary: jobs.total_count != null ? `${jobs.total_count} open roles` : 'No data',
-              score: bd.jobs ?? null,
-              trend: mkTrend(t?.jobs, 'roles'),
-              _open: false,
-              items: (jobs.roles ?? []).map(r => ({ title: r })),
-            },
-            {
-              key: 'appstore', icon: '📱', label: 'App Store',
-              summary: app.length
-                ? app.map(a => `${a.avg_rating}★ (${a.platform})`).join(', ')
-                : 'No mobile app data',
-              score: bd.appstore ?? null,
-              trend: mkTrend(t?.appstore_rating, '★ rating'),
-              _open: false,
-              items: app.flatMap(a =>
-                (a.recent_reviews ?? []).map(r => ({
-                  title:    r.text,
-                  stars:    r.rating,
-                  subtitle: r.date ? r.date.slice(0,10) : null,
-                  badge:    a.platform,
-                }))
-              ),
-            },
-            {
-              key: 'launches', icon: '🚀', label: 'Launches',
-              summary: launches.length ? `${launches.length} launch${launches.length !== 1 ? 'es' : ''}` : 'None found',
-              score: bd.launches ?? null,
-              trend: mkTrend(t?.launches, 'launches'),
-              _open: false,
-              items: launches.map(l => ({
-                title:    l.title,
-                url:      l.url,
-                subtitle: [l.source, l.date ? l.date.slice(0,10) : null].filter(Boolean).join(' · '),
-              })),
-            },
-            {
-              key: 'funding', icon: '💰', label: 'Funding',
-              summary: funding.length ? `${funding.length} signal${funding.length !== 1 ? 's' : ''}` : 'None detected',
-              score: bd.funding ?? null,
-              trend: mkTrend(t?.funding, 'signals'),
-              _open: false,
-              items: funding.map(f => ({
-                title:      f.title,
-                url:        f.url,
-                subtitle:   f.date ? f.date.slice(0,10) : null,
-                badge:      f.amount_hint ?? null,
-                round_type: f.round_type ?? null,
-                investors:  f.investors ?? [],
-                summary:    f.summary ?? null,
-              })),
-            },
-            {
-              key: 'reddit', icon: '🟠', label: 'Reddit',
-              summary: social.length ? `${social.length} post${social.length !== 1 ? 's' : ''}` : 'No posts found',
-              score: null,
-              trend: mkTrend(t?.reddit, 'posts'),
-              _open: false,
-              items: social.filter(s => s.platform === 'reddit').map(s => ({
-                title:    s.content,
-                url:      s.url,
-                subtitle: s.date ? s.date.slice(0,10) : null,
-              })),
-            },
-          ];
-        },
-
-        parseJson(str) {
-          if (!str) return null;
-          try { return JSON.parse(str); } catch { return null; }
-        },
-
-        parseBreakdown(snap) {
-          return this.parseJson(snap.score_breakdown) ?? {};
-        },
-
-        drawChart() {
-          if (this.snapshots.length <= 1) return;
-          const canvas = document.getElementById('momentumChart');
-          if (!canvas) return;
-          if (this.chart) { this.chart.destroy(); }
-
-          const sorted = [...this.snapshots].reverse(); // oldest → newest
-          const labels = sorted.map(s => this.formatDate(s.fetched_at));
-          const data   = sorted.map(s => s.momentum_score);
-
-          this.chart = new Chart(canvas, {
-            type: 'line',
-            data: {
-              labels,
-              datasets: [{
-                label: 'Momentum Score',
-                data,
-                borderColor: '#3b82f6',
-                backgroundColor: 'rgba(59,130,246,0.08)',
-                borderWidth: 2,
-                pointRadius: 4,
-                pointHoverRadius: 6,
-                pointBackgroundColor: '#3b82f6',
-                tension: 0.4,
-                fill: true,
-              }]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              plugins: {
-                legend: { display: false },
-                tooltip: { callbacks: { label: ctx => ` Score: ${Math.round(ctx.parsed.y)}` } }
-              },
-              scales: {
-                x: { grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#9ca3af', font: { size: 11 } } },
-                y: { min: 0, max: 100, grid: { color: 'rgba(0,0,0,0.04)' }, ticks: { color: '#9ca3af', font: { size: 11 }, stepSize: 20 } }
-              }
-            }
-          });
-        },
-
-        drawSignalSparklines() {
-          Object.values(this.signalCharts).forEach(c => c.destroy());
-          this.signalCharts = {};
-          if (this.signalHistory.length < 2) return;
-
-          const metricMap = {
-            press:    'press_count',
-            jobs:     'jobs_count',
-            appstore: 'appstore_avg_rating',
-            launches: 'launches_count',
-            funding:  'funding_count',
-            reddit:   'reddit_count',
-          };
-
-          for (const [sigKey, metricKey] of Object.entries(metricMap)) {
-            const canvas = document.getElementById(`sig-spark-${sigKey}`);
-            if (!canvas) continue;
-            const data = this.signalHistory.map(h => h[metricKey] ?? 0);
-            if (data.every(v => v === 0)) continue;
-
-            const last  = data[data.length - 1];
-            const first = data[0];
-            const color = last >= first ? '#22c55e' : '#ef4444';
-
-            this.signalCharts[sigKey] = new Chart(canvas, {
-              type: 'line',
-              data: {
-                labels: this.signalHistory.map((_, i) => i),
-                datasets: [{
-                  data,
-                  borderColor: color,
-                  borderWidth: 1.5,
-                  pointRadius: 0,
-                  tension: 0.3,
-                  fill: false,
-                }]
-              },
-              options: {
-                responsive: false,
-                animation: false,
-                plugins: { legend: { display: false }, tooltip: { enabled: false } },
-                scales:  { x: { display: false }, y: { display: false } },
-              }
-            });
-          }
-        },
-
-        _domain(website_url) {
-          if (!website_url) return '';
-          try {
-            const url = website_url.startsWith('http') ? website_url : 'https://' + website_url;
-            return new URL(url).hostname.replace(/^www\./, '');
-          } catch { return ''; }
-        },
-
-        logoUrl(website_url) {
-          const d = this._domain(website_url);
-          return d ? `https://logo.clearbit.com/${d}` : '';
-        },
-
-        onLogoError(event, website_url) {
-          const d = this._domain(website_url);
-          if (d && !event.target.dataset.fallback) {
-            event.target.dataset.fallback = '1';
-            event.target.src = `https://www.google.com/s2/favicons?domain=${d}&sz=64`;
-          } else {
-            event.target.style.display = 'none';
-          }
-        },
-
-        letterBgColor(name) {
-          const palette = [
-            '#6366f1','#8b5cf6','#ec4899','#f43f5e',
-            '#f97316','#eab308','#22c55e','#14b8a6',
-            '#3b82f6','#06b6d4',
-          ];
-          let h = 0;
-          for (const c of (name || '')) h = c.charCodeAt(0) + h * 31;
-          return palette[Math.abs(h) % palette.length];
-        },
-
-        aiHighlights() {
-          const raw = this.latestSnapshot?.ai_highlights;
-          if (!raw) return [];
-          try {
-            const parsed = JSON.parse(raw);
-            return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
-          } catch { return []; }
-        },
-
-        timeAgo(iso) {
-          if (!iso) return '';
-          const diff = Date.now() - new Date(iso).getTime();
-          const m = Math.floor(diff / 60000);
-          if (m < 1)  return 'just now';
-          if (m < 60) return `${m}m ago`;
-          const h = Math.floor(m / 60);
-          if (h < 24) return `${h}h ago`;
-          return `${Math.floor(h / 24)}d ago`;
-        },
-
-        formatDate(iso) {
-          if (!iso) return '—';
-          return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-        },
-
-        formatDateShort(iso) {
-          if (!iso) return '—';
-          return new Date(iso).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        },
-
-        scoreClass(score) {
-          if (score == null) return 'bg-gray-100 text-gray-400';
-          if (score >= 70)   return 'bg-green-100 text-green-700';
-          if (score >= 40)   return 'bg-yellow-100 text-yellow-700';
-          return 'bg-red-100 text-red-600';
-        },
+    async init() {
+      if (!this.companyId) { location.href = '/'; return; }
+      const r = await fetch(`/api/companies/${this.companyId}`);
+      if (!r.ok) { location.href = '/'; return; }
+      const d = await r.json();
+      this.company = d.company;
+      this.people = d.people;
+      this.sources = d.sources;
+      this.jobs = d.jobs;
+      this.signals = d.signals;
+      this.weekSignals = d.week_signals;
+      this.snapshot = d.snapshot || {};
+      this.brief = d.brief || { content_md: '' };
+      this.history = d.headcount_history || [];
+      this.activeFlags = d.active_flags || [];
+      this.bullets = this.snapshot.bullets || [];
+      this.flagLabels = d.flag_labels;
+      this.flagIcons = d.flag_icons;
+      this.errors = this.snapshot.errors || {};
+      this.headcount = {
+        total: this.snapshot.headcount_total || 0,
+        nyc: this.snapshot.headcount_nyc || 0,
       };
-    }
-  </script>
+      document.title = `${this.company.name} brief`;
+      this.renderBrief();
+      this.loading = false;
+    },
+
+    renderBrief() {
+      const md = (this.brief && this.brief.content_md) || '';
+      this.briefHtml = md
+        ? marked.parse(md)
+        : '<p class="text-gray-400 text-sm">No brief yet. Refresh to generate one.</p>';
+    },
+
+    get earlyCareer() { return this.jobs.filter(j => j.is_early_career); },
+
+    groupedSignals() {
+      const source = this.weekOnly ? this.weekSignals : this.signals;
+      const buckets = {};
+      for (const s of source) (buckets[s.type] = buckets[s.type] || []).push(s);
+      return TYPE_ORDER
+        .filter(t => buckets[t] && buckets[t].length)
+        .map(t => ({ type: t, items: buckets[t] }));
+    },
+
+    typeLabel(t) { return TYPE_LABELS[t] || t; },
+
+    filteredJobs() {
+      const q = this.jobFilter.trim().toLowerCase();
+      if (!q) return this.jobs;
+      return this.jobs.filter(j =>
+        `${j.title} ${j.location} ${j.department}`.toLowerCase().includes(q));
+    },
+
+    fmtDate(iso) {
+      if (!iso) return 'never';
+      return new Date(iso + (iso.endsWith('Z') ? '' : 'Z'))
+        .toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    },
+
+    toggleEdit() {
+      this.editing = !this.editing;
+      if (this.editing) this.briefDraft = (this.brief && this.brief.content_md) || '';
+    },
+
+    async saveBrief() {
+      const r = await fetch(`/api/companies/${this.companyId}/brief`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content_md: this.briefDraft }),
+      });
+      this.brief = await r.json();
+      this.editing = false;
+      this.renderBrief();
+    },
+
+    async refresh() {
+      this.refreshing = true;
+      try {
+        await fetch(`/api/companies/${this.companyId}/refresh`, { method: 'POST' });
+        await this.init();
+      } finally {
+        this.refreshing = false;
+      }
+    },
+  };
+}
+</script>
 </body>
 </html>

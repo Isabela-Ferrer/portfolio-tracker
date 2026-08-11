@@ -1,0 +1,10 @@
+fastapi>=0.110
+uvicorn>=0.27
+httpx>=0.27
+python-dotenv>=1.0
+openai>=1.30
+selectolax>=0.3.21
+beautifulsoup4>=4.11
+
+# Only needed when the optional appstore fetcher is enabled for a company.
+google-play-scraper>=1.2
