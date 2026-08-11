@@ -10,9 +10,13 @@ Rules, straight off the spec:
   - every item links to its source, every section links to the company page
 """
 
+import asyncio
 import html
 import os
+import re
+import smtplib
 from datetime import datetime, timezone
+from email.message import EmailMessage
 
 import httpx
 from dotenv import load_dotenv
@@ -24,6 +28,12 @@ load_dotenv()
 
 RESEND_ENDPOINT = "https://api.resend.com/emails"
 DEFAULT_FROM = "Dream Tracker <onboarding@resend.dev>"
+
+# Gmail SMTP. Sending one email a week to yourself does not need the Gmail API's
+# OAuth dance: an app password over SMTP does the same job with the standard
+# library and no domain to verify.
+SMTP_HOST = os.getenv("SMTP_HOST") or "smtp.gmail.com"
+SMTP_PORT = int(os.getenv("SMTP_PORT") or 587)
 
 TYPE_LABELS = {
     "podcast": "Podcast", "youtube": "Video", "blog": "Blog", "changelog": "Changelog",
@@ -241,21 +251,83 @@ def render(data: dict = None) -> tuple:
 # Sending
 # --------------------------------------------------------------------------
 
+def _plain_text(subject: str, body_html: str) -> str:
+    """Rough text alternative. Clients that refuse HTML still get something."""
+    text = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", body_html, flags=re.S | re.I)
+    text = re.sub(r"</(p|div|li|h1|h2|tr)>", "\n", text, flags=re.I)
+    text = re.sub(r"<[^>]+>", " ", text)
+    text = html.unescape(text)
+    text = re.sub(r"[ \t]+", " ", text)
+    text = re.sub(r"\n\s*\n+", "\n\n", text)
+    return f"{subject}\n\n{text.strip()}\n\nOpen the dashboard: {base_url()}/"
+
+
+def _send_via_smtp(subject: str, body_html: str, recipient: str,
+                   user: str, password: str, sender: str) -> None:
+    """Blocking SMTP send. Raises on failure so the caller can record it."""
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = sender
+    message["To"] = recipient
+    message.set_content(_plain_text(subject, body_html))
+    message.add_alternative(body_html, subtype="html")
+
+    with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
+        server.ehlo()
+        server.starttls()
+        server.ehlo()
+        server.login(user, password)
+        server.send_message(message)
+
+
 async def send(subject: str = None, body_html: str = None, to: str = None) -> dict:
-    """Send via Resend. Records the attempt either way."""
+    """Send the digest, then record the attempt either way.
+
+    Transport is chosen by whichever credentials are present. Gmail SMTP wins
+    when set, because sending from your own address avoids Resend's domain
+    verification entirely.
+    """
     if subject is None or body_html is None:
         subject, body_html = render()
 
     recipient = to or os.getenv("DIGEST_EMAIL") or ""
+    smtp_user = os.getenv("SMTP_USER") or ""
+    smtp_password = os.getenv("SMTP_PASSWORD") or ""
     api_key = os.getenv("RESEND_API_KEY") or ""
 
-    if not api_key or not recipient:
-        missing = [n for n, v in (("RESEND_API_KEY", api_key),
-                                  ("DIGEST_EMAIL", recipient)) if not v]
-        detail = f"not sent, missing env: {', '.join(missing)}"
+    if not recipient:
+        detail = "not sent, missing env: DIGEST_EMAIL"
         digest_id = db.record_digest(subject, body_html, "skipped", detail)
         return {"status": "skipped", "detail": detail, "digest_id": digest_id}
 
+    if not (smtp_user and smtp_password) and not api_key:
+        detail = ("not sent, no transport configured. Set SMTP_USER and "
+                  "SMTP_PASSWORD for Gmail, or RESEND_API_KEY for Resend")
+        digest_id = db.record_digest(subject, body_html, "skipped", detail)
+        return {"status": "skipped", "detail": detail, "digest_id": digest_id}
+
+    # --- Gmail (or any SMTP host) ---
+    if smtp_user and smtp_password:
+        sender = os.getenv("DIGEST_FROM") or smtp_user
+        try:
+            await asyncio.to_thread(_send_via_smtp, subject, body_html, recipient,
+                                    smtp_user, smtp_password, sender)
+            digest_id = db.record_digest(subject, body_html, "sent",
+                                         f"{recipient} via smtp:{SMTP_HOST}")
+            return {"status": "sent", "to": recipient, "transport": "smtp",
+                    "digest_id": digest_id}
+        except smtplib.SMTPAuthenticationError as e:
+            detail = (f"SMTP auth rejected ({e.smtp_code}). With Gmail this is "
+                      f"almost always an ordinary password instead of a 16 character "
+                      f"app password, or 2 step verification being off.")
+            digest_id = db.record_digest(subject, body_html, "failed", detail)
+            return {"status": "failed", "detail": detail, "digest_id": digest_id}
+        except Exception as e:
+            detail = f"{type(e).__name__}: {e}"
+            digest_id = db.record_digest(subject, body_html, "failed", detail)
+            return {"status": "failed", "detail": detail, "digest_id": digest_id}
+
+    # --- Resend ---
     payload = {
         "from": os.getenv("DIGEST_FROM") or DEFAULT_FROM,
         "to": [recipient],
@@ -273,7 +345,8 @@ async def send(subject: str = None, body_html: str = None, to: str = None) -> di
             digest_id = db.record_digest(subject, body_html, "failed", r.text[:500])
             return {"status": "failed", "detail": r.text[:500], "digest_id": digest_id}
         digest_id = db.record_digest(subject, body_html, "sent", recipient)
-        return {"status": "sent", "to": recipient, "digest_id": digest_id}
+        return {"status": "sent", "to": recipient, "transport": "resend",
+                "digest_id": digest_id}
     except Exception as e:
         detail = f"{type(e).__name__}: {e}"
         digest_id = db.record_digest(subject, body_html, "failed", detail)

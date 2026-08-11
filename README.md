@@ -63,10 +63,39 @@ python3 -m uvicorn main:app --reload --port 8000
 
 Open http://localhost:8000/
 
-Only `OPENAI_API_KEY` is required. Without `RESEND_API_KEY` and `DIGEST_EMAIL`
-the digest still renders at `/api/digest/preview` and records itself as skipped.
-Without `YOUTUBE_API_KEY` the YouTube fetcher returns nothing and every other
-fetcher carries on.
+Only `OPENAI_API_KEY` is required. Without an email transport the digest still
+renders at `/api/digest/preview` and records itself as skipped. Without
+`YOUTUBE_API_KEY` the YouTube fetcher returns nothing and every other fetcher
+carries on.
+
+## Sending the digest
+
+Two transports. SMTP wins when both are configured.
+
+**Gmail over SMTP**, the simpler one. It sends from your own address, so there
+is no domain to verify and no deliverability question:
+
+```
+DIGEST_EMAIL=you@gmail.com
+SMTP_USER=you@gmail.com
+SMTP_PASSWORD=xxxx xxxx xxxx xxxx   # the 16 character app password
+```
+
+`SMTP_PASSWORD` is a Google [App Password](https://myaccount.google.com/apppasswords),
+not your normal password. It needs 2 step verification switched on. Workspace
+admins, including a lot of universities, can disable app passwords, so if yours
+is blocked use a personal Gmail or Resend instead.
+
+The Gmail API proper would also work, but it wants an OAuth client, a consent
+screen and token refresh handling to send one email a week to yourself. SMTP
+does the same job with the standard library.
+
+**Resend**, used only when the SMTP variables are unset:
+
+```
+DIGEST_EMAIL=you@example.com
+RESEND_API_KEY=re_...
+```
 
 ## Adding a company
 

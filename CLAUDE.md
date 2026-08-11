@@ -30,7 +30,7 @@ Seeding and discovery:
 - **[flags.py](flags.py)** — Signal flags, replacing the old momentum score
 - **[fetchers/](fetchers/)** — `careers` (Ashby/Greenhouse/Lever + weekly job diff), `blogs` (RSS and changelog), `podcasts` (iTunes), `youtube`, `arxiv`, plus carried-over `press`, `funding`, `product_launches`, `reddit`, `appstore`
 - **[ai_narrator.py](ai_narrator.py)** — Two GPT-4o-mini prompts: weekly bullets and the brief updater
-- **[digest.py](digest.py)** — Monday digest, plain inline-styled HTML, sent via Resend
+- **[digest.py](digest.py)** — Monday digest, plain inline-styled HTML. Two transports: Gmail over SMTP when `SMTP_USER`/`SMTP_PASSWORD` are set, otherwise Resend
 - **[scheduler.py](scheduler.py)** — In-process weekly scheduler, no external dependency
 - **[trend_calculator.py](trend_calculator.py)** — Headcount deltas, the only thing that trends
 - **[database.py](database.py)** — SQLite helpers; `init_db()` + `_migrate_db()` run at startup
