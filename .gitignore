@@ -1,0 +1,14 @@
+.env
+.venv/
+__pycache__/
+
+# Local SQLite database and backups. This holds scraped signals, the jobs
+# table and the generated briefs, and it churns on every refresh.
+data/
+*.db
+*.db.*
+
+# Local Claude Code permissions, machine specific
+.claude/settings.local.json
+
+.DS_Store

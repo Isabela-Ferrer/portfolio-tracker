@@ -5,16 +5,20 @@ from models import AppStoreData, AppReview
 from google_play_scraper import app, reviews, Sort
 
 
+# Opt-in per company: only runs when "appstore" is in enabled_optional_fetchers,
+# which in practice means ElevenLabs. G2 is no longer wired in here; it is out
+# of the core path entirely.
+
 # Extract app ID from URL
 # iOS: https://apps.apple.com/app/id284882215 → "284882215"
 # Android: https://play.google.com/store/apps/details?id=com.whatsapp → "com.whatsapp"
 
 async def fetch(company) -> list[AppStoreData]:
     results = []
-    if company.app_store_url:
+    if getattr(company, 'app_store_url', None):
         ios = await _fetch_ios(company.app_store_url)
         if ios: results.append(ios)
-    if company.play_store_url:
+    if getattr(company, 'play_store_url', None):
         android = await _fetch_android(company.play_store_url)
         if android: results.append(android)
     return results
