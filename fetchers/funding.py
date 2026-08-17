@@ -12,22 +12,55 @@ _SPACE_RE = re.compile(r'\s+')
 # The news queries below are keyword searches, so they happily return roundup
 # pieces like "The July US Venture Capital Funding Report". Without a gate every
 # company looks like it raised every week and the funding flag means nothing.
-_ROUND_RE = re.compile(
-    r'\b(raises?|raised|raising|funding round|series\s+[a-j]\b|seed round|'
-    r'pre-seed|valuation|valued at|investment round|led the round|led by|'
-    r'closes?\s+\$|secures?\s+\$|lands?\s+\$|nets?\s+\$)',
+#
+# An event, not a topic. The old gate accepted the phrase "funding round"
+# anywhere, which let database listings titled "2026 Funding Rounds & List of
+# Investors" through and lit the funding flag for companies that raised nothing.
+_EVENT_RE = re.compile(
+    r'\b(raises?|raised|raising|closes?|closed|secures?|secured|lands?|landed|'
+    r'nets?|netted)\b[^.]{0,60}?(\$|€|£|\bround\b|\bfunding\b|\bmillion\b|\bbillion\b)'
+    r'|\bseries\s+[a-j]\b[^.]{0,40}?(\bfunding\b|\bround\b|\braise\b|\$)'
+    r'|\b(valued at|valuation of|post-money|pre-money)\b'
+    r'|[\$€£]\s?\d[\d.,]*\s*(m|bn|b|k|million|billion)\b'
+    r'|\b(seed|pre-seed|series\s+[a-j])\s+round\b',
+    re.IGNORECASE,
+)
+
+# Company database and profile sites. They rank well for "<company> funding" and
+# publish a permanent page per company, so they resurface forever and are never
+# actually news.
+_DIRECTORY_DOMAINS = (
+    'tracxn.com', 'crunchbase.com', 'pitchbook.com', 'cbinsights.com',
+    'growjo.com', 'dealroom.co', 'owler.com', 'zoominfo.com', 'craft.co',
+    'similarweb.com', 'getlatka.com', 'latka.com', 'clay.earth',
+    'stockanalysis.com', 'wellfound.com', 'leadiq.com', 'rocketreach.co',
+)
+_DIRECTORY_TITLE_RE = re.compile(
+    r'(list of investors|funding rounds? (&|and) |company profile|'
+    r'competitors? (&|and) alternatives|revenue, growth|employee size|'
+    r'\bfunding overview\b|\bcap table\b|- Tracxn$|\| Crunchbase)',
     re.IGNORECASE,
 )
 
 
-def _is_funding_news(title: str, snippet: str, company_name: str) -> bool:
-    """Require the company by name in the headline and actual round language."""
+def _is_directory(url: str, title: str) -> bool:
+    host = urlparse(url or '').netloc.replace('www.', '').lower()
+    if any(host.endswith(d) for d in _DIRECTORY_DOMAINS):
+        return True
+    return bool(_DIRECTORY_TITLE_RE.search(title or ''))
+
+
+def _is_funding_news(title: str, snippet: str, company_name: str,
+                     url: str = '') -> bool:
+    """Require the company by name in the headline and an actual round event."""
     name = (company_name or '').strip().lower()
     if not name:
         return False
     if not re.search(r'\b' + re.escape(name) + r'\b', (title or '').lower()):
         return False
-    return bool(_ROUND_RE.search(f"{title} {(snippet or '')[:400]}"))
+    if _is_directory(url, title):
+        return False
+    return bool(_EVENT_RE.search(f"{title} {(snippet or '')[:400]}"))
 
 
 def _extract_domain(company) -> str:
@@ -101,7 +134,7 @@ async def fetch(company) -> list[FundingSignal]:
                     amount = AMOUNT_RE.search(title)
                     desc   = _clean_html(item.findtext("description", ""))
 
-                    if not _is_funding_news(title, desc, name):
+                    if not _is_funding_news(title, desc, name, link):
                         continue
 
                     signals.append(FundingSignal(

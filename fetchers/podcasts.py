@@ -90,8 +90,10 @@ async def fetch(company, people: list, client: httpx.AsyncClient = None) -> list
                     title=f"{person['name']} on {ep.get('collectionName') or 'a podcast'}: {title}"[:280],
                     url=url,
                     published_at=released.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S"),
+                    # The show notes are the only description of what was said,
+                    # and the summariser cannot do better than what it is given.
                     raw={"person": person["name"], "podcast": ep.get("collectionName"),
-                         "episode": title, "guid": guid, "summary": desc[:400]},
+                         "episode": title, "guid": guid, "summary": desc[:1500]},
                 ))
     finally:
         if own_client:

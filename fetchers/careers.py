@@ -31,7 +31,13 @@ EARLY_CAREER_RE = re.compile(
     r"early[\s-]?career|campus|apprentice(?:ship)?)\b",
     re.IGNORECASE,
 )
-NYC_RE = re.compile(r"\b(new york|nyc|brooklyn|manhattan)\b", re.IGNORECASE)
+NYC_RE = re.compile(
+    r"\b(new york|nyc|brooklyn|manhattan|long island city|queens, ny)\b",
+    re.IGNORECASE,
+)
+# ", NY" as a state abbreviation, case sensitive so "ny" inside a word or a
+# lowercase locale string does not count.
+_NY_ABBREV_RE = re.compile(r",\s*NY\b")
 
 # ATS references embedded in a company's own careers page. Both the hosted
 # board form (jobs.ashbyhq.com/slug) and the API form the page's own JS calls
@@ -72,7 +78,8 @@ def is_early_career(title: str) -> bool:
 
 
 def is_nyc(location: str) -> bool:
-    return bool(NYC_RE.search(location or ""))
+    text = location or ""
+    return bool(NYC_RE.search(text) or _NY_ABBREV_RE.search(text))
 
 
 # --------------------------------------------------------------------------
@@ -356,6 +363,19 @@ async def fetch(company, client: httpx.AsyncClient = None) -> dict:
         total, nyc = db.headcount(company.id)
         return {"signals": [], "headcount_total": total, "headcount_nyc": nyc,
                 "opened": 0, "closed": 0, "skipped": "empty_board_response"}
+
+    # The very first crawl sees the whole board at once. Those roles are not new,
+    # we have simply never looked before, and emitting a job_new for each one
+    # produced digests announcing "262 new roles this week". Record the board as
+    # the baseline and let the diff start meaning something next week.
+    baseline = not db.has_any_jobs(company.id)
+    if baseline:
+        for p in postings:
+            db.insert_job(company.id, p, is_early_career(p.title),
+                          is_nyc(p.location), seen_at)
+        total, nyc = db.headcount(company.id)
+        return {"signals": [], "headcount_total": total, "headcount_nyc": nyc,
+                "opened": 0, "closed": 0, "baseline": len(postings), "skipped": None}
 
     signals, opened = [], 0
     live_ids = set()

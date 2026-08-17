@@ -58,11 +58,21 @@ def compute_flags(new_signals: list, open_jobs: list, headcount_delta: int = 0) 
         for s in new_signals
     )
 
+    # A board of 130 reqs always has something opening or closing, so "any job
+    # signal at all" lit this flag for every company every week and told Isa
+    # nothing. A shift is a real move in the total, or a role of the kind she is
+    # actually looking for appearing.
+    notable_new_role = any(
+        s.get("type") == "job_new"
+        and ((s.get("raw") or {}).get("is_early_career")
+             or (s.get("raw") or {}).get("is_nyc"))
+        for s in new_signals
+    )
+
     return {
         "founder_appearance": any(t in ("podcast", "youtube") for t in types),
         "launch": "launch" in types,
-        "hiring_shift": ("job_new" in types or "job_closed" in types
-                         or abs(headcount_delta) >= HEADCOUNT_NOISE),
+        "hiring_shift": abs(headcount_delta) >= HEADCOUNT_NOISE or notable_new_role,
         # Sticky, not weekly: an open new-grad role still matters in week three.
         "early_career_open": any(j.get("is_early_career") for j in open_jobs),
         "major_press": major_press,

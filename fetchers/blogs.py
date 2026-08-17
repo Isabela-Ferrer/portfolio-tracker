@@ -21,6 +21,7 @@ from xml.etree.ElementTree import fromstring
 import httpx
 from selectolax.parser import HTMLParser
 
+import content
 from models import Signal
 
 UA = {"User-Agent": "Mozilla/5.0 (compatible; dream-tracker/1.0)"}
@@ -186,7 +187,9 @@ def _heading_text(node) -> str:
     for sel in ("h1", "h2", "h3", "h4", "strong", "a"):
         el = node.css_first(sel)
         if el:
-            text = el.text(strip=True)
+            # separator matters: a heading split across spans concatenates into
+            # "Future(s) of WorkHow will AI change the way we work?" without it.
+            text = _clean(el.text(separator=" ", strip=True))
             if text and len(text) > 2:
                 return text[:200]
     return ""
@@ -253,7 +256,7 @@ def _card_title(anchor) -> tuple:
     for sel in ("h1", "h2", "h3", "h4"):
         el = anchor.css_first(sel)
         if el:
-            text = el.text(strip=True)
+            text = _clean(el.text(separator=" ", strip=True))
             if text and len(text) > 8:
                 return text[:200], None
 
@@ -262,7 +265,7 @@ def _card_title(anchor) -> tuple:
     if len(label) > 8:
         return label[:200], None
 
-    text = anchor.text(strip=True) or ""
+    text = _clean(anchor.text(separator=" ", strip=True))
     dt = None
     m = _DATE_TEXT_RE.match(text)
     if m:
@@ -389,8 +392,27 @@ async def _fetch_source(client: httpx.AsyncClient, company_id: int, source: dict
         for e in raw_entries:
             e["dated"] = bool(e.get("published"))
 
+    entries = raw_entries[:MAX_ENTRIES_PER_SOURCE]
+
+    # Listing pages routinely render dates client side, so the card carries no
+    # date at all. Rather than let an undated post inherit the time of the crawl,
+    # open the post once and read its own metadata. content.fetch_many caches by
+    # URL, so this costs one request per post ever, not one per week.
+    undated = [e["url"] for e in entries if not e.get("published") and e.get("url")]
+    if undated:
+        try:
+            resolved = await content.resolve_dates(undated, client)
+            for e in entries:
+                if not e.get("published"):
+                    found = resolved.get(e["url"])
+                    if found:
+                        e["published"] = found
+                        e["dated"] = True
+        except Exception as exc:
+            print(f"[blogs] date resolution failed for {url}: {exc}")
+
     signals = []
-    for e in raw_entries[:MAX_ENTRIES_PER_SOURCE]:
+    for e in entries:
         dt = parse_date(e.get("published") or "")
         if not _recent(dt):
             continue
