@@ -17,7 +17,59 @@ UA = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.3
                     "(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"}
 
 MAX_REPOS = 3
-MAX_RELEASES = 3
+MAX_RELEASES = 5
+# After filtering. A company shipping three genuinely notable releases in a week
+# is already unusual.
+MAX_KEPT_RELEASES = 3
+
+_SEMVER_RE = re.compile(r"\bv?(\d+)\.(\d+)\.(\d+)")
+
+# Tags no human wrote. These come out of SDK codegen pipelines and release bots
+# and are never the thing Isa wants to read about.
+_MACHINE_TAG_RE = re.compile(
+    r"(fern-generation|generation-base|snapshot|nightly|canary|"
+    r"-rc\.?\d|alpha\.?\d|beta\.?\d|dependabot|renovate)",
+    re.IGNORECASE,
+)
+# Release notes that say nothing: "Full Changelog: ...", "chore: bump version".
+_THIN_NOTES_RE = re.compile(
+    r"^\s*(full changelog|what'?s changed|chore|bump|version bump|"
+    r"no changes|release \d)",
+    re.IGNORECASE,
+)
+_TAG_RE = re.compile(r"<[^>]+>")
+MIN_NOTES_CHARS = 200
+
+
+def _notes_text(raw: str) -> str:
+    return re.sub(r"\s+", " ", _TAG_RE.sub(" ", raw or "")).strip()
+
+
+def is_noteworthy_release(entry_title: str, notes: str) -> bool:
+    """Is this release a shipped thing, or a package publish?
+
+    The test that actually separates them is whether a human wrote release
+    notes. SDK repos publish constantly and bump the minor version while doing
+    it, so version position says nothing: elevenlabs-js v2.62.0 is semantically
+    a minor release and editorially nothing at all. A major version is the one
+    exception, because x.0.0 is a milestone whether or not anyone wrote it up.
+    """
+    title = entry_title or ""
+    if _MACHINE_TAG_RE.search(title):
+        return False
+
+    match = _SEMVER_RE.search(title)
+    if not match:
+        # No version in the tag usually means a named release, which is worth
+        # keeping as long as it is not machine generated.
+        return True
+
+    major, minor, patch = (int(g) for g in match.groups())
+    if major > 0 and minor == 0 and patch == 0:
+        return True
+
+    body = _notes_text(notes)
+    return len(body) >= MIN_NOTES_CHARS and not _THIN_NOTES_RE.match(body)
 
 
 def _ph_slug(company) -> str:
@@ -113,11 +165,17 @@ async def _fetch_repo_releases(client: httpx.AsyncClient, org: str, repo: str) -
     ns = {"atom": "http://www.w3.org/2005/Atom"}
     out = []
     for entry in root.findall("atom:entry", ns)[:MAX_RELEASES]:
+        entry_title = entry.findtext("atom:title", "", ns)
+        notes = entry.findtext("atom:content", "", ns)
+        if not is_noteworthy_release(entry_title, notes):
+            continue
         link = entry.find("atom:link", ns)
         out.append(ProductLaunch(
-            title=f"{repo} {entry.findtext('atom:title', '', ns)}".strip(),
+            title=f"{repo} {entry_title}".strip(),
             url=link.get("href", "") if link is not None else "",
             date=entry.findtext("atom:updated", "", ns),
             source="github",
         ))
+        if len(out) >= MAX_KEPT_RELEASES:
+            break
     return [l for l in out if l.url]

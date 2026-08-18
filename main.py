@@ -342,6 +342,12 @@ def list_digests(limit: int = 10):
     return db.list_digests(limit=limit)
 
 
+@app.get("/api/ai-cache")
+def ai_cache_stats():
+    """How much of the AI work is being served from cache rather than rebought."""
+    return db.ai_cache_stats()
+
+
 @app.get("/api/digests/{digest_id}", response_class=HTMLResponse)
 def get_digest(digest_id: int):
     record = db.get_digest(digest_id)

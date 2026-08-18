@@ -31,6 +31,14 @@ MAX_RESULTS = 15
 
 _CHANNEL_ID_RE = re.compile(r"^UC[\w-]{20,}$")
 
+# Creators pack SEO hashtags onto the end of a title, and often with no space
+# before the first one: "...save time and reduce costs#podcast #ramp".
+_TRAILING_TAGS_RE = re.compile(r"\s*(?:#[\w-]+\s*)+$")
+
+
+def clean_title(title: str) -> str:
+    return _TRAILING_TAGS_RE.sub("", (title or "").strip()).strip(" -|·") or (title or "")
+
 
 def api_key() -> str:
     return os.getenv("YOUTUBE_API_KEY") or ""
@@ -101,11 +109,11 @@ async def _channel_uploads(client: httpx.AsyncClient, company, channel_url: str,
             continue
         out.append(Signal(
             company_id=company.id, type="youtube",
-            title=snip.get("title", "")[:280],
+            title=clean_title(snip.get("title", ""))[:280],
             url=f"https://www.youtube.com/watch?v={vid}",
             published_at=published,
             raw={"mode": "channel", "channel": snip.get("channelTitle", ""),
-                 "summary": (snip.get("description") or "")[:400]},
+                 "summary": (snip.get("description") or "")[:1500]},
         ))
     return out
 
@@ -131,12 +139,43 @@ async def _person_search(client: httpx.AsyncClient, company, person: dict,
             continue
         out.append(Signal(
             company_id=company.id, type="youtube",
-            title=f"{person['name']}: {title}"[:280],
+            title=f"{person['name']}: {clean_title(title)}"[:280],
             url=f"https://www.youtube.com/watch?v={vid}",
             published_at=_iso(snip.get("publishedAt", "")),
             raw={"mode": "search", "person": person["name"],
                  "channel": snip.get("channelTitle", ""), "summary": desc[:400]},
         ))
+    return out
+
+
+def _video_id(url: str) -> str:
+    return url.rsplit("v=", 1)[-1] if "v=" in url else ""
+
+
+async def _video_details(client: httpx.AsyncClient, video_ids: list) -> dict:
+    """{video_id: {description, views, duration, channel}} for up to 50 videos.
+
+    playlistItems and search both return truncated or missing descriptions, and
+    the summariser needs the real thing to say what a video was actually about.
+    One videos.list call covers 50 ids for a single quota unit, so this is the
+    cheapest content in the whole pipeline.
+    """
+    ids = [v for v in dict.fromkeys(video_ids) if v][:50]
+    if not ids:
+        return {}
+    data = await _get(client, "videos", {
+        "part": "snippet,statistics,contentDetails", "id": ",".join(ids),
+    })
+    out = {}
+    for item in data.get("items", []):
+        snip = item.get("snippet", {}) or {}
+        stats = item.get("statistics", {}) or {}
+        out[item.get("id", "")] = {
+            "description": (snip.get("description") or "")[:1500],
+            "views": int(stats.get("viewCount") or 0),
+            "duration": (item.get("contentDetails", {}) or {}).get("duration", ""),
+            "channel": snip.get("channelTitle", ""),
+        }
     return out
 
 
@@ -154,18 +193,34 @@ async def fetch(company, people: list, sources: list, since: datetime = None,
         tasks = [_channel_uploads(client, company, url, since) for url in channels]
         tasks += [_person_search(client, company, p, since) for p in (people or [])]
         results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        signals, seen = [], set()
+        for res in results:
+            if isinstance(res, Exception):
+                print(f"[youtube] {company.name}: {res}")
+                continue
+            for s in res:
+                if s.url in seen:
+                    continue
+                seen.add(s.url)
+                signals.append(s)
+
+        # Enrich in one batched call rather than per video.
+        try:
+            details = await _video_details(client, [_video_id(s.url) for s in signals])
+        except Exception as e:
+            print(f"[youtube] {company.name}: video details failed: {e}")
+            details = {}
     finally:
         if own_client:
             await client.aclose()
 
-    signals, seen = [], set()
-    for res in results:
-        if isinstance(res, Exception):
-            print(f"[youtube] {company.name}: {res}")
+    for s in signals:
+        info = details.get(_video_id(s.url))
+        if not info:
             continue
-        for s in res:
-            if s.url in seen:
-                continue
-            seen.add(s.url)
-            signals.append(s)
+        s.raw["summary"] = info["description"] or s.raw.get("summary", "")
+        s.raw["views"] = info["views"]
+        s.raw["duration"] = info["duration"]
+        s.raw["channel"] = info["channel"] or s.raw.get("channel", "")
     return signals

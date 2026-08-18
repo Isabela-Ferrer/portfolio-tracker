@@ -133,6 +133,38 @@ CREATE TABLE IF NOT EXISTS digests (
     status TEXT,
     detail TEXT
 );
+
+-- Every OpenAI response, keyed by a hash of (kind, model, prompt). The same
+-- prompt is never billed twice, which matters most on repeated manual refreshes
+-- and on reruns after a crash mid-week.
+CREATE TABLE IF NOT EXISTS ai_cache (
+    key TEXT PRIMARY KEY,
+    kind TEXT,
+    model TEXT,
+    response TEXT,
+    created_at TEXT NOT NULL,
+    hits INTEGER DEFAULT 0
+);
+
+-- Article body text, keyed by URL. A page is scraped once, ever. Failures are
+-- cached too, so a paywalled or dead link is not retried every week.
+CREATE TABLE IF NOT EXISTS content_cache (
+    url TEXT PRIMARY KEY,
+    title TEXT,
+    text TEXT,
+    published_at TEXT,
+    status TEXT,                     -- 'ok' | 'empty' | 'error'
+    fetched_at TEXT NOT NULL
+);
+
+-- One sentence saying what a signal actually was, generated once per signal and
+-- reused by the digest and the brief. This is the main reason the weekly run
+-- does not re-summarise anything it has already seen.
+CREATE TABLE IF NOT EXISTS signal_summaries (
+    signal_id INTEGER PRIMARY KEY REFERENCES signals(id) ON DELETE CASCADE,
+    summary TEXT,
+    created_at TEXT NOT NULL
+);
 """
 
 _LEGACY_INDEXES = (
@@ -399,6 +431,10 @@ def insert_signals(snapshot_id: int, signals: list) -> list:
     Deduping on (company_id, type, url) is what makes "this week" meaningful:
     a signal already recorded in an earlier snapshot keeps its original
     snapshot_id and is not reported again.
+
+    published_at is stored exactly as the fetcher resolved it, empty string
+    included. It used to fall back to the fetch time, which made every undated
+    blog post look like it was published the morning of the run.
     """
     created = now_iso()
     new_rows = []
@@ -411,13 +447,14 @@ def insert_signals(snapshot_id: int, signals: list) -> list:
                    (company_id, snapshot_id, type, title, url, published_at, raw_json, created_at)
                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
                 (s.company_id, snapshot_id, s.type, s.title, s.url,
-                 s.published_at or created, json.dumps(s.raw or {}), created),
+                 s.published_at or "", json.dumps(s.raw or {}), created),
             )
             if cur.rowcount:
                 new_rows.append({
                     "id": cur.lastrowid, "company_id": s.company_id, "type": s.type,
                     "title": s.title, "url": s.url,
-                    "published_at": s.published_at or created,
+                    "published_at": s.published_at or "",
+                    "created_at": created,
                     "raw": s.raw or {},
                 })
     return new_rows
@@ -517,6 +554,19 @@ def _job_row(row) -> dict:
     return d
 
 
+def has_any_jobs(company_id: int) -> bool:
+    """Has this company's board ever been recorded, open or closed?
+
+    The weekly diff needs this to tell a genuine wave of new postings apart from
+    the very first crawl, where every role on the board is 'new' and nothing is.
+    """
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT 1 FROM jobs WHERE company_id = ? LIMIT 1", (company_id,)
+        ).fetchone()
+        return row is not None
+
+
 def get_open_jobs(company_id: int) -> list:
     with get_conn() as conn:
         rows = conn.execute(
@@ -602,6 +652,117 @@ def save_brief(company_id: int, content_md: str) -> None:
                                                      updated_at = excluded.updated_at""",
             (company_id, content_md, now_iso()),
         )
+
+
+# --------------------------------------------------------------------------
+# Caches
+#
+# Three of them, all doing the same job: make sure nothing is ever paid for or
+# fetched twice. ai_cache covers model calls, content_cache covers scraping,
+# signal_summaries covers the per-item summaries that both the digest and the
+# brief read from.
+# --------------------------------------------------------------------------
+
+def ai_cache_get(key: str):
+    """Return a cached model response, recording the hit. None when absent."""
+    with get_conn() as conn:
+        row = conn.execute("SELECT response FROM ai_cache WHERE key = ?", (key,)).fetchone()
+        if not row:
+            return None
+        conn.execute("UPDATE ai_cache SET hits = hits + 1 WHERE key = ?", (key,))
+        return row["response"]
+
+
+def ai_cache_put(key: str, kind: str, model: str, response: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO ai_cache (key, kind, model, response, created_at)
+               VALUES (?, ?, ?, ?, ?)
+               ON CONFLICT(key) DO UPDATE SET response = excluded.response""",
+            (key, kind, model, response, now_iso()),
+        )
+
+
+def ai_cache_stats() -> dict:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS entries, COALESCE(SUM(hits), 0) AS hits FROM ai_cache"
+        ).fetchone()
+        by_kind = [dict(r) for r in conn.execute(
+            "SELECT kind, COUNT(*) AS entries, COALESCE(SUM(hits), 0) AS hits "
+            "FROM ai_cache GROUP BY kind ORDER BY entries DESC"
+        )]
+    return {"entries": int(row["entries"]), "reuses": int(row["hits"]), "by_kind": by_kind}
+
+
+def content_cache_get(url: str):
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM content_cache WHERE url = ?", (url,)).fetchone()
+        return dict(row) if row else None
+
+
+def content_cache_put(url: str, title: str, text: str, published_at: str,
+                      status: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            """INSERT INTO content_cache (url, title, text, published_at, status, fetched_at)
+               VALUES (?, ?, ?, ?, ?, ?)
+               ON CONFLICT(url) DO UPDATE SET
+                   title = excluded.title, text = excluded.text,
+                   published_at = excluded.published_at, status = excluded.status,
+                   fetched_at = excluded.fetched_at""",
+            (url, title or "", text or "", published_at or "", status, now_iso()),
+        )
+
+
+def get_signal_summaries(signal_ids: list) -> dict:
+    """{signal_id: summary} for the ids that already have one."""
+    ids = [int(i) for i in signal_ids if i is not None]
+    if not ids:
+        return {}
+    out = {}
+    with get_conn() as conn:
+        # Chunked to stay under SQLite's variable limit on a big first run.
+        for start in range(0, len(ids), 400):
+            chunk = ids[start:start + 400]
+            placeholders = ",".join("?" * len(chunk))
+            for row in conn.execute(
+                f"SELECT signal_id, summary FROM signal_summaries "
+                f"WHERE signal_id IN ({placeholders})", chunk
+            ):
+                out[int(row["signal_id"])] = row["summary"]
+    return out
+
+
+def save_signal_summaries(pairs: dict) -> None:
+    """pairs: {signal_id: summary}."""
+    if not pairs:
+        return
+    created = now_iso()
+    with get_conn() as conn:
+        conn.executemany(
+            """INSERT INTO signal_summaries (signal_id, summary, created_at)
+               VALUES (?, ?, ?)
+               ON CONFLICT(signal_id) DO UPDATE SET summary = excluded.summary""",
+            [(int(sid), text, created) for sid, text in pairs.items() if text],
+        )
+
+
+def get_signals_since(company_id: int, since_iso: str, limit: int = 200) -> list:
+    """Signals first recorded since a timestamp, newest publish date first.
+
+    Keyed on created_at, not published_at: 'what did we discover this week' is
+    the question the digest is asking, and an undated post still counts.
+    """
+    with get_conn() as conn:
+        rows = conn.execute(
+            """SELECT * FROM signals
+               WHERE company_id = ? AND created_at >= ?
+               ORDER BY COALESCE(NULLIF(published_at, ''), created_at) DESC
+               LIMIT ?""",
+            (company_id, since_iso, limit),
+        ).fetchall()
+        return [_signal_row(r) for r in rows]
 
 
 # --------------------------------------------------------------------------

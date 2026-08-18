@@ -3,9 +3,13 @@
   "configurations": [
     {
       "name": "dream-tracker",
-      "runtimeExecutable": "/Library/Frameworks/Python.framework/Versions/3.11/bin/python3",
-      "runtimeArgs": ["-u", "-m", "uvicorn", "main:app", "--port", "8000", "--host", "127.0.0.1"],
-      "port": 8000
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "exec /Library/Frameworks/Python.framework/Versions/3.11/bin/python3 -u -m uvicorn main:app --host 127.0.0.1 --port \"${PORT:-8000}\""
+      ],
+      "port": 8000,
+      "autoPort": true
     }
   ]
 }

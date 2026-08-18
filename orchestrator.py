@@ -7,11 +7,13 @@ and handed to the AI layer for bullets and a brief update.
 """
 
 import asyncio
+import re
 from datetime import datetime, timedelta, timezone
 
 import httpx
 
 import ai_narrator
+import content
 import database as db
 import flags as flags_mod
 from fetchers import (appstore, arxiv, blogs, careers, funding, podcasts,
@@ -104,6 +106,58 @@ def _reddit_signals(company_id: int, items: list) -> list:
 
 
 # --------------------------------------------------------------------------
+# Cross-outlet dedupe
+# --------------------------------------------------------------------------
+
+_OUTLET_SUFFIX_RE = re.compile(r"\s*[-|–—]\s*[^-|–—]{2,40}$")
+_NOISE_RE = re.compile(r"[^a-z0-9 ]+")
+# Dropped before comparing. Outlets rewrite headlines just enough to shift these
+# ("to Public Sector" against "to the Public Sector") and nothing else.
+_STOPWORDS = frozenset((
+    "the", "and", "for", "with", "from", "into", "its", "his", "her", "their",
+    "that", "this", "has", "have", "was", "are", "will", "new", "now", "you",
+))
+_KEY_WORDS = 10
+
+
+def _title_key(title: str) -> str:
+    """Normalised headline, with the trailing outlet name removed.
+
+    Google News returns the same story from every outlet that ran it, and the
+    URLs all differ, so the (company, type, url) unique index never catches them.
+    One press release became two identical lines in the digest and ate two of the
+    six slots a company gets.
+    """
+    text = (title or "").strip()
+    text = _OUTLET_SUFFIX_RE.sub("", text)
+    text = _NOISE_RE.sub(" ", text.lower())
+    words = [w for w in text.split() if len(w) > 2 and w not in _STOPWORDS]
+    return " ".join(words[:_KEY_WORDS])
+
+
+def dedupe_by_title(signals: list) -> list:
+    """Drop repeats of the same story, keeping the tier one outlet where there is one."""
+    positions = {}          # key -> index into out
+    out = []
+    for s in signals:
+        key = (s.type, _title_key(s.title))
+        if not key[1]:
+            out.append(s)
+            continue
+        if key not in positions:
+            positions[key] = len(out)
+            out.append(s)
+            continue
+        # Prefer a recognised outlet over an aggregator reprint.
+        current = out[positions[key]]
+        if (flags_mod.is_tier_one(s.url, (s.raw or {}).get("source", ""))
+                and not flags_mod.is_tier_one(current.url,
+                                              (current.raw or {}).get("source", ""))):
+            out[positions[key]] = s
+    return out
+
+
+# --------------------------------------------------------------------------
 # Refresh
 # --------------------------------------------------------------------------
 
@@ -160,6 +214,7 @@ async def refresh_company(company, run_ai: bool = True) -> dict:
     signals += _funding_signals(company.id, results.get("funding"))
     signals += _launch_signals(company.id, results.get("launches"))
     signals += _reddit_signals(company.id, results.get("reddit"))
+    signals = dedupe_by_title(signals)
 
     extras = {}
     if results.get("appstore"):
@@ -181,21 +236,51 @@ async def refresh_company(company, run_ai: bool = True) -> dict:
 
     company_flags = flags_mod.compute_flags(new_signals, open_jobs, delta)
 
+    # Only genuinely new content is worth reading and summarising. Job churn is
+    # counted and linked, never narrated: the numbers are already on the
+    # dashboard and in the digest's own hiring line.
+    new_content = [s for s in new_signals if ai_narrator.is_content(s)]
+
     bullets = [ai_narrator.QUIET_BULLET]
-    if run_ai:
+    summaries = {}
+    if run_ai and new_content:
+        # Scrape the pages behind this week's content. content.fetch_many is
+        # cache-first, so a URL costs one request ever and reruns cost none.
+        try:
+            async with httpx.AsyncClient(headers=UA, follow_redirects=True) as reader:
+                pages = await content.fetch_many([s["url"] for s in new_content], reader)
+        except Exception as e:
+            errors["content"] = f"{type(e).__name__}: {e}"
+            pages = {}
+
+        # One sentence per signal, written once and stored. Everything below
+        # reads these instead of the articles.
+        summaries = await asyncio.to_thread(
+            ai_narrator.summarise_signals, company.name, new_content, pages)
+
         bullets = await asyncio.to_thread(
-            ai_narrator.generate_weekly_bullets, company.name, new_signals, open_jobs)
+            ai_narrator.generate_weekly_bullets, company.name, new_content,
+            open_jobs, summaries)
 
         existing = db.get_brief(company.id)
-        if new_signals or not existing:
-            brief = await asyncio.to_thread(
-                ai_narrator.update_brief, company.name,
-                (existing or {}).get("content_md", ""),
-                new_signals or db.get_recent_signals(company.id, days=90, limit=40),
-                open_jobs, people)
-            db.save_brief(company.id, brief)
-    elif new_signals:
-        bullets = [f"{len(new_signals)} new signals picked up."]
+        brief = await asyncio.to_thread(
+            ai_narrator.update_brief, company.name,
+            (existing or {}).get("content_md", ""),
+            new_content, open_jobs, people, summaries)
+        db.save_brief(company.id, brief)
+    elif run_ai and not db.get_brief(company.id):
+        # No brief yet and nothing new: seed one from what is already on record
+        # rather than leaving the company page empty until something happens.
+        recent = [s for s in db.get_recent_signals(company.id, days=90, limit=40)
+                  if ai_narrator.is_content(s)]
+        summaries = await asyncio.to_thread(
+            ai_narrator.summarise_signals, company.name, recent, {})
+        brief = await asyncio.to_thread(
+            ai_narrator.update_brief, company.name, "", recent, open_jobs,
+            people, summaries)
+        db.save_brief(company.id, brief)
+    elif new_content:
+        bullets = [f"{len(new_content)} new items picked up."]
 
     db.finalize_snapshot(snapshot_id, company_flags, bullets, errors,
                          headcount_total, headcount_nyc, extras)
@@ -209,6 +294,9 @@ async def refresh_company(company, run_ai: bool = True) -> dict:
         "flag_count": flags_mod.flag_count(company_flags),
         "bullets": bullets,
         "new_signals": len(new_signals),
+        "new_content": len(new_content),
+        "summarised": len(summaries),
+        "jobs_baseline": careers_result.get("baseline", 0),
         "jobs_opened": careers_result.get("opened", 0),
         "jobs_closed": careers_result.get("closed", 0),
         "headcount": {"total": headcount_total, "nyc": headcount_nyc},
