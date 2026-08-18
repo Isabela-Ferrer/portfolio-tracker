@@ -112,6 +112,30 @@ else degrades gracefully when unset.
 - Never show a date the source did not give. An undated item shows no date; it
   used to inherit the time of the crawl and read as published that morning.
 
+## Tests
+
+```bash
+pip3 install -r requirements-dev.txt
+pytest
+```
+
+236 tests, ~2 seconds, no network and no API key. Layout and the reasoning
+behind it are in [tests/README.md](tests/README.md); every test file carries its
+own explanation in the docstrings.
+
+- `tests/conftest.py` holds the fixtures. `temp_db` gives a real SQLite file in
+  a temp directory; an autouse fixture repoints `database.DB_PATH` for *every*
+  test so nothing can reach `data/tracker.db`.
+- The network is faked with `httpx.MockTransport`, handed in through the
+  `client=` argument `careers.fetch` and `content.fetch_many` already accept.
+  Keep that argument when editing those functions; it is the test seam.
+- OpenAI is faked by swapping `ai_narrator.client`. The fake records its calls,
+  which is how the "nothing is bought twice" tests assert a *non-event*.
+- SQLite is not faked. The dedupe and the job diff live in the SQL.
+
+Every rule in the Conventions section above has a test. Adding a rule means
+adding one; changing a rule means a test should fail first.
+
 ## Dependencies
 
 `pip3 install -r requirements.txt` (Python 3.11).

@@ -12,3 +12,6 @@ data/
 .claude/settings.local.json
 
 .DS_Store
+
+# pytest caches
+.pytest_cache/

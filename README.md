@@ -113,6 +113,18 @@ cron and no APScheduler. Restart safety comes from checking the database rather
 than memory, so restarting the server on a Monday morning does not send twice.
 Manual refresh buttons work alongside it.
 
+## Tests
+
+```bash
+pip3 install -r requirements-dev.txt
+pytest
+```
+
+236 tests in about two seconds. Nothing in the suite touches the network, an
+OpenAI key or the real database: HTTP is faked with `httpx.MockTransport`, the
+model client is swapped for a recording fake, and each test gets its own SQLite
+file in a temp directory. See [tests/README.md](tests/README.md).
+
 ## Out of scope for v1
 
 X/Twitter, real-time job alerts, multi-user auth, G2.
