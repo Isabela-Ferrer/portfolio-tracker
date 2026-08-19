@@ -12,3 +12,7 @@ data/
 .claude/settings.local.json
 
 .DS_Store
+
+# code factory
+.factory/
+.factory-worktrees/
