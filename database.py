@@ -13,7 +13,9 @@ from datetime import datetime, timedelta, timezone
 
 import authority
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "tracker.db")
+# DB_PATH env var points at a persistent volume in hosted deployments.
+DB_PATH = os.getenv("DB_PATH") or os.path.join(
+    os.path.dirname(__file__), "data", "tracker.db")
 
 
 def get_conn():
