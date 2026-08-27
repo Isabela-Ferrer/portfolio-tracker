@@ -7,6 +7,12 @@ Deliberately dependency free: a one minute tick beats pulling in APScheduler for
 two weekly jobs. Restart safety comes from looking at what is already in the
 database rather than from in-memory state, so bouncing the server on a Monday
 morning does not send the digest twice.
+
+A job whose scheduled time passed while the server was down runs on the next
+tick after startup instead of being skipped for the week: the laptop being
+closed at Monday 08:00 delays the digest until the Mac wakes, it no longer
+loses it. When both jobs are overdue the refresh goes first, so a caught-up
+digest reports fresh data.
 """
 
 import asyncio
@@ -27,9 +33,8 @@ DIGEST_DAY = int(os.getenv("DIGEST_DAY", 0))
 DIGEST_HOUR = int(os.getenv("DIGEST_HOUR", 8))
 
 TICK_SECONDS = 60
-# How long after the scheduled hour a missed job is still worth running, for
-# example if the laptop was closed at 23:00.
-GRACE_MINUTES = 90
+# A failed digest attempt is retried, but not every tick all week.
+RETRY_HOURS = 2
 
 _state = {"running": False, "last_refresh": None, "last_digest": None, "task": None}
 
@@ -38,11 +43,14 @@ def now_local() -> datetime:
     return datetime.now(TZ)
 
 
-def _in_window(now: datetime, day: int, hour: int) -> bool:
-    if now.weekday() != day:
-        return False
-    scheduled = now.replace(hour=hour, minute=0, second=0, microsecond=0)
-    return scheduled <= now < scheduled + timedelta(minutes=GRACE_MINUTES)
+def _last_scheduled(now: datetime, day: int, hour: int) -> datetime:
+    """The most recent occurrence of day/hour at or before now."""
+    behind = (now.weekday() - day) % 7
+    candidate = (now - timedelta(days=behind)).replace(
+        hour=hour, minute=0, second=0, microsecond=0)
+    if candidate > now:
+        candidate -= timedelta(days=7)
+    return candidate
 
 
 def _hours_since(iso: str) -> float:
@@ -56,20 +64,34 @@ def _hours_since(iso: str) -> float:
     return (datetime.now(timezone.utc) - dt).total_seconds() / 3600
 
 
-def _refresh_ran_recently() -> bool:
-    """Any snapshot in the last 6 hours means the weekly refresh already happened."""
+def _hours_ago(now: datetime, then: datetime) -> float:
+    return (now - then).total_seconds() / 3600
+
+
+def _refresh_due(now: datetime) -> bool:
+    """Due when no snapshot exists since the last scheduled refresh time."""
     with db.get_conn() as conn:
+        if not conn.execute("SELECT 1 FROM companies LIMIT 1").fetchone():
+            return False
         row = conn.execute("SELECT MAX(created_at) AS last FROM snapshots").fetchone()
-    return _hours_since(row["last"] if row else None) < 6
+    scheduled = _last_scheduled(now, REFRESH_DAY, REFRESH_HOUR)
+    return _hours_since(row["last"] if row else None) > _hours_ago(now, scheduled)
 
 
-def _digest_sent_recently() -> bool:
+def _digest_due(now: datetime) -> bool:
+    """Due when nothing was sent since the last scheduled digest time.
+
+    A failed attempt does not count as sent, but is only retried every
+    RETRY_HOURS so a dead API key does not hammer the transport all week.
+    """
     recent = db.list_digests(limit=1)
     if not recent:
-        return False
-    if recent[0]["status"] not in ("sent", "skipped"):
-        return False
-    return _hours_since(recent[0]["sent_at"]) < 12
+        return True
+    scheduled = _last_scheduled(now, DIGEST_DAY, DIGEST_HOUR)
+    age = _hours_since(recent[0]["sent_at"])
+    if recent[0]["status"] in ("sent", "skipped"):
+        return age > _hours_ago(now, scheduled)
+    return age > RETRY_HOURS
 
 
 async def run_refresh_job() -> dict:
@@ -97,9 +119,9 @@ async def _loop():
         while True:
             try:
                 now = now_local()
-                if _in_window(now, REFRESH_DAY, REFRESH_HOUR) and not _refresh_ran_recently():
+                if _refresh_due(now):
                     await run_refresh_job()
-                elif _in_window(now, DIGEST_DAY, DIGEST_HOUR) and not _digest_sent_recently():
+                elif _digest_due(now):
                     await run_digest_job()
             except Exception as e:
                 # A failed week must not kill the scheduler for every week after.
