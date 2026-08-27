@@ -11,7 +11,11 @@ import os
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
-DB_PATH = os.path.join(os.path.dirname(__file__), "data", "tracker.db")
+import authority
+
+# DB_PATH env var points at a persistent volume in hosted deployments.
+DB_PATH = os.getenv("DB_PATH") or os.path.join(
+    os.path.dirname(__file__), "data", "tracker.db")
 
 
 def get_conn():
@@ -94,6 +98,7 @@ CREATE TABLE IF NOT EXISTS signals (
     url TEXT,
     published_at TEXT,
     raw_json TEXT,
+    authority TEXT,                             -- 'official' | 'outlet' | 'community'
     created_at TEXT NOT NULL,
     UNIQUE(company_id, type, url)
 );
@@ -223,6 +228,7 @@ def _migrate_db():
         "ALTER TABLE jobs ADD COLUMN url TEXT",
         "ALTER TABLE companies ADD COLUMN app_store_url TEXT",
         "ALTER TABLE companies ADD COLUMN play_store_url TEXT",
+        "ALTER TABLE signals ADD COLUMN authority TEXT",
     ]
     with get_conn() as conn:
         for stmt in migrations:
@@ -230,6 +236,48 @@ def _migrate_db():
                 conn.execute(stmt)
             except sqlite3.Error:
                 pass  # column already exists
+    _backfill_authority()
+
+
+def _backfill_authority() -> None:
+    """Classify every signals row that predates the authority column.
+
+    Runs after the column migration above so a fresh column is never left
+    NULL. Classifies each row against its own company, then writes every
+    result back in one transaction. Selects nothing and writes nothing when
+    every row already has an authority, which is what makes this idempotent
+    and free on every startup after the first.
+    """
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, company_id, type, url, raw_json FROM signals "
+            "WHERE authority IS NULL OR authority = ''"
+        ).fetchall()
+        if not rows:
+            return
+
+        companies = {}
+        updates = []
+        for row in rows:
+            company_id = row["company_id"]
+            if company_id not in companies:
+                crow = conn.execute(
+                    "SELECT * FROM companies WHERE id = ?", (company_id,)
+                ).fetchone()
+                companies[company_id] = _company_row(crow) if crow else {}
+            company = companies[company_id]
+
+            try:
+                raw = json.loads(row["raw_json"] or "{}")
+            except (json.JSONDecodeError, TypeError):
+                raw = {}
+            signal = {"type": row["type"], "url": row["url"], "raw": raw}
+            result = authority.classify_authority(signal, company)
+            updates.append((result, row["id"]))
+
+        conn.executemany(
+            "UPDATE signals SET authority = ? WHERE id = ?", updates
+        )
 
 
 # --------------------------------------------------------------------------
@@ -438,16 +486,26 @@ def insert_signals(snapshot_id: int, signals: list) -> list:
     """
     created = now_iso()
     new_rows = []
+    companies = {}
     with get_conn() as conn:
         for s in signals:
             if not s.url:
                 continue
+            if s.company_id not in companies:
+                crow = conn.execute(
+                    "SELECT * FROM companies WHERE id = ?", (s.company_id,)
+                ).fetchone()
+                companies[s.company_id] = _company_row(crow) if crow else {}
+            company = companies[s.company_id]
+            classified = authority.classify_authority(s, company)
+
             cur = conn.execute(
                 """INSERT OR IGNORE INTO signals
-                   (company_id, snapshot_id, type, title, url, published_at, raw_json, created_at)
-                   VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (company_id, snapshot_id, type, title, url, published_at, raw_json,
+                    authority, created_at)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
                 (s.company_id, snapshot_id, s.type, s.title, s.url,
-                 s.published_at or "", json.dumps(s.raw or {}), created),
+                 s.published_at or "", json.dumps(s.raw or {}), classified, created),
             )
             if cur.rowcount:
                 new_rows.append({
@@ -456,6 +514,7 @@ def insert_signals(snapshot_id: int, signals: list) -> list:
                     "published_at": s.published_at or "",
                     "created_at": created,
                     "raw": s.raw or {},
+                    "authority": classified,
                 })
     return new_rows
 

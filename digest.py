@@ -26,6 +26,7 @@ from email.message import EmailMessage
 import httpx
 from dotenv import load_dotenv
 
+import authority
 import database as db
 import flags as flags_mod
 
@@ -49,6 +50,12 @@ TYPE_LABELS = {
 # order: what gets shown first, and what gets dropped when a section is capped.
 LINKED_TYPES = ("funding", "podcast", "youtube", "arxiv", "launch", "changelog",
                 "press", "blog")
+
+# Only signals attributable to the company itself, its team, or a recognised
+# outlet make it into the brief. Reddit threads, unrelated YouTube channels and
+# unrelated podcasts are still stored (nothing is dropped at fetch or insert
+# time) but never featured.
+BRIEF_AUTHORITIES = ("official", "outlet")
 
 # Gmail clips messages over roughly 102KB, and a busy week across 15 companies
 # blows past that easily if every signal is listed. Cap per section and say so
@@ -112,7 +119,17 @@ def collect() -> dict:
         week_signals = [s for s in week_signals
                         if _age_ok(s.get("published_at") or "", ITEM_MAX_AGE_DAYS)]
 
-        content = [s for s in week_signals if s.get("type") in LINKED_TYPES]
+        # A row written before the authority column existed has no stored
+        # value; classify it on the fly rather than treating it as community
+        # by omission.
+        for s in week_signals:
+            stored = s.get("authority")
+            if not isinstance(stored, str) or not stored:
+                s["authority"] = authority.classify_authority(s, row)
+
+        content = [s for s in week_signals
+                   if s.get("type") in LINKED_TYPES
+                   and s.get("authority") in BRIEF_AUTHORITIES]
         summaries = db.get_signal_summaries([s.get("id") for s in content])
 
         open_jobs = db.get_open_jobs(row["id"])
@@ -202,7 +219,8 @@ def _signal_items(entry: dict) -> str:
     tells Isa nothing; the sentence underneath it does, and it was written once
     from the article body and cached, so putting it here is free.
     """
-    linked = sorted(entry["content"],
+    linked = [s for s in entry["content"] if s.get("authority") != "community"]
+    linked = sorted(linked,
                     key=lambda s: (LINKED_TYPES.index(s["type"]),
                                    -len(s.get("published_at") or "")))
     shown = linked[:MAX_SIGNALS_PER_SECTION]

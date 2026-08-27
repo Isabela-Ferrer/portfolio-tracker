@@ -28,6 +28,7 @@ Seeding and discovery:
 - **[orchestrator.py](orchestrator.py)** — Runs every fetcher concurrently behind its own exception guard, dedupes into signals, computes flags, calls the AI layer, persists a snapshot
 - **[discovery.py](discovery.py)** — Setup-time discovery of ATS board, blog feed, changelog, YouTube channel, GitHub org. Verifies everything by fetching it; unverifiable surfaces are recorded as not found
 - **[flags.py](flags.py)** — Signal flags, replacing the old momentum score
+- **[authority.py](authority.py)** — Pure classifier: a signal's type, url and `raw` dict plus the company's website decide `official` / `outlet` / `community`, no I/O
 - **[fetchers/](fetchers/)** — `careers` (Ashby/Greenhouse/Lever + weekly job diff), `blogs` (RSS and changelog), `podcasts` (iTunes), `youtube`, `arxiv`, plus carried-over `press`, `funding`, `product_launches`, `reddit`, `appstore`
 - **[content.py](content.py)** — Article body extraction, cached permanently by URL in `content_cache`. Also where a real publish date comes from when the listing page does not carry one
 - **[ai_narrator.py](ai_narrator.py)** — Three GPT-4o-mini prompts: per-signal summaries, weekly bullets, the brief updater
@@ -76,6 +77,15 @@ bullets, update the brief. A company with no new content makes none at all. Job
 churn on its own is not content: the counts are on the dashboard already, so
 narrating them is duplication, and `_DASHBOARD_FACT_RE` in `ai_narrator` drops
 any bullet that slips through and does it anyway.
+
+**Source authority, not deletion.** Every signal still gets fetched and stored,
+whoever it came from: a Reddit thread, a stranger's YouTube upload, a podcast
+with no one from the team on it. `authority.classify_authority` labels each one
+`official`, `outlet`, or `community` as it is inserted, and the label is
+backfilled onto older rows by `_migrate_db()`. Only `digest.py` reads that label
+to decide what earns a spot in Monday's brief; the database, the dashboard, and
+the company page keep showing everything. A community signal is never lost,
+only never featured.
 
 ## Environment
 
